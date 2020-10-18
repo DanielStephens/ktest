@@ -6,4 +6,4 @@ clj -Spom
 # build an uberjar of the library
 clojure -Sdeps '{:deps {uberdeps/uberdeps {:mvn/version "1.0.2"}}}' -m uberdeps.uberjar
 # install the uberjar to maven
-clojure -X:deps mvn-install :jar '"target/counter.jar"' :pom '"pom.xml"'
+clojure -X:deps mvn-install :jar '"target/ktest.jar"' :pom '"pom.xml"'

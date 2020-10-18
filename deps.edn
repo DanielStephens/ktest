@@ -3,16 +3,12 @@
         org.apache.kafka/kafka-streams {:mvn/version "2.4.0"}
         org.apache.kafka/kafka-streams-test-utils {:mvn/version "2.4.0"}}
  :aliases {:test {:extra-paths ["test"]
-                  :extra-deps {
-                               com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
+                  :extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
                                                           :sha "209b64504cb3bd3b99ecfec7937b358a879f55c1"}
                                fundingcircle/jackdaw {:mvn/version "0.7.6"
                                                       :exclusions [io.confluent/kafka-schema-registry-client
-                                                                   io.confluent/kafka-avro-serializer]}
-                               }
+                                                                   io.confluent/kafka-avro-serializer]}}
                   :main-opts ["-m" "cognitect.test-runner"]}
            :build {:extra-paths ["src-build"]
                    :extra-deps {badigeon/badigeon {:mvn/version "1.1"}}
-                   :main-opts ["-m" "build"]}}
- :mvn/repos
- {"confluent" {:url "https://packages.confluent.io/maven/"}}}
+                   :main-opts ["-m" "build"]}}}
