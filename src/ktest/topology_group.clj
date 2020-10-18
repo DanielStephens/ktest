@@ -1,7 +1,8 @@
 (ns ktest.topology-group
   (:require [ktest.driver :refer :all]
             [ktest.topology :as t]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [digest :refer [md5]]))
 
 (defn- message-partition [opts key]
   ((:partition opts) key))
@@ -10,7 +11,7 @@
   (str/replace app-id #"[^a-zA-Z0-9._-]" "_"))
 
 (defn- partitioned-application-id [root-application-id partition]
-  (sanitise-app-id (str root-application-id "-" partition)))
+  (sanitise-app-id (str root-application-id "-" (md5 (str partition)))))
 
 (defn- repartition-topic [root-application-id partition root-topic]
   (str (partitioned-application-id root-application-id partition) "-" root-topic))
@@ -48,7 +49,7 @@
           more-output (pipe-raw-input d (:topic m) m)]
       (recur opts state root-application-id supplier
              (munge-outputs [output (:output more-output)])
-             (flatten-repartitions opts root-application-id (:repartitions more-output))))
+             (concat (next inputs) (flatten-repartitions opts root-application-id (:repartitions more-output)))))
     output))
 
 (defrecord TopologyGroupDriver
@@ -86,7 +87,7 @@
 
 (defn topology-group-driver
   [opts topology-supplier application-id initial-epoch]
-  (let [topology (topology-supplier)
+  (let [topology ((:topo-mutator opts) (topology-supplier))
         state (atom {:epoch initial-epoch})
         supplier #(t/topology-driver opts topology
                                      (partitioned-application-id application-id %)

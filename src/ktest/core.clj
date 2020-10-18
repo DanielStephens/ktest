@@ -7,7 +7,8 @@
   {:recurse true
    :recursion-limit 1000
    :partition (fn [k] (vec k))
-   :seed (.nextLong (Random.))})
+   :seed (.nextLong (Random.))
+   :topo-mutator stores/mutate-to-fast-stores})
 
 (defn driver
   [opts & name-topology-supplier-pairs]

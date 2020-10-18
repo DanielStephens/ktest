@@ -1,7 +1,8 @@
 (ns ktest.topology
   (:require [ktest.driver :refer :all]
             [clojure.string :as str]
-            [ktest.internal.interop :as i])
+            [ktest.internal.interop :as i]
+            [jackdaw.serdes :as serdes])
   (:import [org.apache.kafka.streams TopologyTestDriver TopologyInternalsAccessor]
            [org.apache.kafka.clients.consumer ConsumerRecord]
            [org.apache.kafka.common.record TimestampType]
@@ -69,7 +70,7 @@
      :repartitions repartition-output}))
 
 (defrecord TopologyDriver
-  [state ^TopologyTestDriver driver application-id sources sinks repartition-topic?]
+  [opts state ^TopologyTestDriver driver application-id sources sinks repartition-topic?]
   Driver
   (pipe-raw-input [_ topic message]
     (let [repartitions (atom [])]
@@ -93,7 +94,7 @@
       (form-output driver sinks @repartitions)))
   (close [_] (.close driver)))
 
-(defn topology-driver [_opts topology application-id initial-epoch]
+(defn topology-driver [opts topology application-id initial-epoch]
   (let [state (atom {:epoch initial-epoch})
 
         config {"application.id" application-id
@@ -120,4 +121,4 @@
         sinks (->> (concat p-sinks gp-sinks)
                    (remove repartition-topic?)
                    (set))]
-    (->TopologyDriver state driver application-id sources sinks repartition-topic?)))
+    (->TopologyDriver opts state driver application-id sources sinks repartition-topic?)))

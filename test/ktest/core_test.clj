@@ -10,11 +10,14 @@
 
 (def edn-serde (serdes/edn-serde))
 
+(def serde-config
+  {:key-serde edn-serde
+   :value-serde edn-serde})
+
 (defn topic-config
   [topic-name]
-  {:topic-name topic-name
-   :key-serde edn-serde
-   :value-serde edn-serde})
+  (assoc serde-config
+    :topic-name topic-name))
 
 (defn build-topology
   [builder]
@@ -316,3 +319,67 @@
     (is (= {"time-output" [{:key "k"
                             :value "v at 1"}]}
            (sut/advance-time driver 1)))))
+
+(defn join-topology []
+  (let [builder (j/streams-builder)
+        table (j/ktable builder (topic-config "table-input"))]
+    (-> (j/kstream builder (topic-config "join-input"))
+        (j/left-join table (fn [i t] {:input i
+                                      :table-value t}))
+        (j/to (topic-config "join-output")))
+    (build-topology builder)))
+
+(defn select-key-join-topology []
+  (let [builder (j/streams-builder)
+        unused-table (-> (j/kstream builder (topic-config "table-input"))
+                         (j/select-key (fn [[_ v]] (rand-int 1000)))
+                         (j/map-values :input)
+                         (j/group-by-key serde-config)
+                         (j/reduce (fn [_ b] b) (topic-config "a")))
+        table (-> (j/kstream builder (topic-config "table-input"))
+                  (j/select-key (fn [[_ v]] (:input v)))
+                  (j/map-values :input)
+                  (j/group-by-key serde-config)
+                  (j/reduce (fn [_ b] b) (topic-config "table")))]
+    (-> (j/kstream builder (topic-config "join-input"))
+        (j/select-key (fn [[_ v]] v))
+        (j/left-join table (fn [v t] {:input v
+                                      :table-value t})
+                     serde-config serde-config)
+        (j/through (topic-config "join-output"))
+        (j/to (topic-config "table-input")))
+    (build-topology builder)))
+
+(deftest join
+  (testing "join"
+    (with-open [driver (sut/driver {:key-serde edn-serde
+                                    :value-serde edn-serde}
+                                   "join" join-topology)]
+      (is (= {} (sut/pipe driver "table-input" {:key "k" :value "v in table"})))
+      (is (= {"join-output" [{:key "k"
+                              :value {:input "v in input"
+                                      :table-value "v in table"}}]}
+             (sut/pipe driver "join-input" {:key "k" :value "v in input"})))
+      (is (= {"join-output" [{:key "k2"
+                              :value {:input "v in input"
+                                      :table-value nil}}]}
+             (sut/pipe driver "join-input" {:key "k2" :value "v in input"})))))
+
+  (testing "join-with-select-key"
+    (with-open [driver (sut/driver {:key-serde edn-serde
+                                    :value-serde edn-serde}
+                                   "join" select-key-join-topology)]
+      (is (= {"join-output" [{:key "id"
+                              :value {:input "id"
+                                      :table-value nil}}]
+              "table-input" [{:key "id"
+                              :value {:input "id"
+                                      :table-value nil}}]}
+             (sut/pipe driver "join-input" {:key "k" :value "id"})))
+      (is (= {"join-output" [{:key "id"
+                              :value {:input "id"
+                                      :table-value "id"}}]
+              "table-input" [{:key "id"
+                              :value {:input "id"
+                                      :table-value "id"}}]}
+             (sut/pipe driver "join-input" {:key "k" :value "id"}))))))

@@ -15,6 +15,10 @@ public class TopologyInternalsAccessor {
 	private TopologyInternalsAccessor() {
 	}
 
+	public static InternalTopologyBuilder internalTopologyBuilder(Topology topology) {
+		return topology.internalTopologyBuilder;
+	}
+
 	public static ProcessorTopology processorTopology(TopologyTestDriver topologyTestDriver) {
 		return topologyTestDriver.processorTopology;
 	}

@@ -3,7 +3,9 @@ cd "$DIR"
 
 # update the existing pom with any change in deps.edn dependencies
 clj -Spom
-# build an uberjar of the library
-clojure -Sdeps '{:deps {uberdeps/uberdeps {:mvn/version "1.0.2"}}}' -m uberdeps.uberjar
-# install the uberjar to maven
-clojure -X:deps mvn-install :jar '"target/ktest.jar"' :pom '"pom.xml"'
+# generate java classes
+clj -M:build
+# build a jar of the library
+clj -Sdeps '{:deps {seancorfield/depstar {:mvn/version "1.1.128"}}}' -M -m hf.depstar.jar 'target/ktest.jar'
+# install the jar to maven
+clj -X:deps mvn-install :jar '"target/ktest.jar"' :pom '"pom.xml"'
