@@ -1,15 +1,17 @@
-package org.apache.kafka.streams;
+package org.apache.kafka.streams.processor.internals;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.metrics.Metrics;
-import org.apache.kafka.common.utils.LogContext;
-import org.apache.kafka.streams.errors.DefaultProductionExceptionHandler;
+import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.TopologyTestDriver;
 import org.apache.kafka.streams.internals.QuietStreamsConfig;
 import org.apache.kafka.streams.processor.Cancellable;
 import org.apache.kafka.streams.processor.ProcessorContext;
@@ -17,11 +19,6 @@ import org.apache.kafka.streams.processor.PunctuationType;
 import org.apache.kafka.streams.processor.Punctuator;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
-import org.apache.kafka.streams.processor.internals.ProcessorNode;
-import org.apache.kafka.streams.processor.internals.ProcessorTopology;
-import org.apache.kafka.streams.processor.internals.RecordCollectorImpl;
-import org.apache.kafka.streams.processor.internals.StateDirectory;
-import org.apache.kafka.streams.processor.internals.StreamTask;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
 
 import clojure.lang.IFn;
@@ -46,8 +43,8 @@ public class CapturingStreamTask extends StreamTask {
 				null,
 				null,
 				dumbConfig(),
-				new StreamsMetricsImpl(new Metrics(new TopologyTestDriver.MockTime(0)), "", ""),
-				new StateDirectory(dumbConfig(), new TopologyTestDriver.MockTime(0), false),
+				new StreamsMetricsImpl(new Metrics(Time.SYSTEM), ""),
+				new StateDirectory(dumbConfig(), Time.SYSTEM, false),
 				null,
 				null,
 				new ProducerSupplier() {
@@ -56,14 +53,9 @@ public class CapturingStreamTask extends StreamTask {
 						return null;
 					}
 				},
-				new RecordCollectorImpl("", new LogContext(), new DefaultProductionExceptionHandler(), null));
+				null);
 		this.delegate = delegate;
 		this.capture = capture;
-	}
-
-	@Override
-	public void initializeMetadata() {
-		delegate.initializeMetadata();
 	}
 
 	@Override
@@ -81,10 +73,12 @@ public class CapturingStreamTask extends StreamTask {
 		delegate.resume();
 	}
 
+	@Override
 	public boolean process() {
 		return delegate.process();
 	}
 
+	@Override
 	public void punctuate(ProcessorNode node, long timestamp, PunctuationType type, Punctuator punctuator) {
 		delegate.punctuate(node, timestamp, type, punctuator);
 	}
@@ -94,6 +88,7 @@ public class CapturingStreamTask extends StreamTask {
 		delegate.commit();
 	}
 
+	@Override
 	public void suspend() {
 		delegate.suspend();
 	}
@@ -103,20 +98,24 @@ public class CapturingStreamTask extends StreamTask {
 		delegate.close(clean, isZombie);
 	}
 
+	@Override
 	public void addRecords(TopicPartition partition, Iterable<ConsumerRecord<byte[], byte[]>> records) {
 		for (ConsumerRecord<byte[], byte[]> record : records) {
 			capture.invoke(delegate, partition, record);
 		}
 	}
 
+	@Override
 	public Cancellable schedule(long interval, PunctuationType type, Punctuator punctuator) {
 		return delegate.schedule(interval, type, punctuator);
 	}
 
+	@Override
 	public boolean maybePunctuateStreamTime() {
 		return delegate.maybePunctuateStreamTime();
 	}
 
+	@Override
 	public boolean maybePunctuateSystemTime() {
 		return delegate.maybePunctuateSystemTime();
 	}
@@ -165,8 +164,29 @@ public class CapturingStreamTask extends StreamTask {
 		return delegate.toString(indent);
 	}
 
+	@Override
 	public boolean isClosed() {
 		return delegate.isClosed();
+	}
+
+	@Override
+	protected Map<TopicPartition, Long> activeTaskCheckpointableOffsets() {
+		return delegate.activeTaskCheckpointableOffsets();
+	}
+
+	@Override
+	public void flushState() {
+		delegate.flushState();
+	}
+
+	@Override
+	public void closeSuspended(boolean clean, boolean isZombie, RuntimeException firstException) {
+		delegate.closeSuspended(clean, isZombie, firstException);
+	}
+
+	@Override
+	public void updateOffsetLimits() {
+		delegate.updateOffsetLimits();
 	}
 
 	@Override

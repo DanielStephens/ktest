@@ -78,7 +78,7 @@
 (defn mutate-to-fast-stores
   [topology]
   (let [i-builder (TopologyInternalsAccessor/internalTopologyBuilder topology)
-        stores (.stateStores ^InternalTopologyBuilder i-builder)
+        stores (.getStateStores ^InternalTopologyBuilder i-builder)
         store-names (keys stores)]
     (doseq [store-name store-names
             :let [{:keys [users builder]} (alternative-store store-name (get stores store-name))]]
