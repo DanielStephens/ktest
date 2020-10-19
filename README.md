@@ -1,5 +1,7 @@
 # ktest
 
+[![Clojars Project](https://img.shields.io/clojars/v/djs/ktest.svg)](https://clojars.org/djs/ktest)
+
 A clojure library to provide improved unit testing capabilities for your kafka topologies.
 
 This project is very new and might have some way to go before being stable, the versioning may be missleading here as I have for now opted to version this project inline with the kafka version supported.
