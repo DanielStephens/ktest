@@ -1,7 +1,7 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
-./install.sh
+./install.sh $1
 mvn deploy:deploy-file \
       -Dfile=target/ktest.jar \
       -DrepositoryId=clojars \
