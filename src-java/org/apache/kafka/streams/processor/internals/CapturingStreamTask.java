@@ -1,4 +1,4 @@
-package org.apache.kafka.streams;
+package org.apache.kafka.streams.processor.internals;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -9,6 +9,9 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.utils.LogContext;
+import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.TopologyTestDriver;
 import org.apache.kafka.streams.errors.DefaultProductionExceptionHandler;
 import org.apache.kafka.streams.internals.QuietStreamsConfig;
 import org.apache.kafka.streams.processor.Cancellable;
@@ -46,8 +49,8 @@ public class CapturingStreamTask extends StreamTask {
 				null,
 				null,
 				dumbConfig(),
-				new StreamsMetricsImpl(new Metrics(new TopologyTestDriver.MockTime(0)), "", ""),
-				new StateDirectory(dumbConfig(), new TopologyTestDriver.MockTime(0), false),
+				new StreamsMetricsImpl(new Metrics(Time.SYSTEM), "", ""),
+				new StateDirectory(dumbConfig(), Time.SYSTEM, false),
 				null,
 				null,
 				new ProducerSupplier() {
@@ -81,10 +84,17 @@ public class CapturingStreamTask extends StreamTask {
 		delegate.resume();
 	}
 
+	@Override
+	public boolean isProcessable(long now) {
+		return delegate.isProcessable(now);
+	}
+
+	@Override
 	public boolean process() {
 		return delegate.process();
 	}
 
+	@Override
 	public void punctuate(ProcessorNode node, long timestamp, PunctuationType type, Punctuator punctuator) {
 		delegate.punctuate(node, timestamp, type, punctuator);
 	}
@@ -94,6 +104,12 @@ public class CapturingStreamTask extends StreamTask {
 		delegate.commit();
 	}
 
+	@Override
+	public void flushState() {
+		delegate.flushState();
+	}
+
+	@Override
 	public void suspend() {
 		delegate.suspend();
 	}
@@ -103,22 +119,31 @@ public class CapturingStreamTask extends StreamTask {
 		delegate.close(clean, isZombie);
 	}
 
+	@Override
 	public void addRecords(TopicPartition partition, Iterable<ConsumerRecord<byte[], byte[]>> records) {
 		for (ConsumerRecord<byte[], byte[]> record : records) {
 			capture.invoke(delegate, partition, record);
 		}
 	}
 
+	@Override
 	public Cancellable schedule(long interval, PunctuationType type, Punctuator punctuator) {
 		return delegate.schedule(interval, type, punctuator);
 	}
 
+	@Override
 	public boolean maybePunctuateStreamTime() {
 		return delegate.maybePunctuateStreamTime();
 	}
 
+	@Override
 	public boolean maybePunctuateSystemTime() {
 		return delegate.maybePunctuateSystemTime();
+	}
+
+	@Override
+	public boolean hasRecordsQueued() {
+		return delegate.hasRecordsQueued();
 	}
 
 	@Override
@@ -156,6 +181,7 @@ public class CapturingStreamTask extends StreamTask {
 		return delegate.toString();
 	}
 
+	@Override
 	public boolean isEosEnabled() {
 		return delegate.isEosEnabled();
 	}
@@ -165,6 +191,7 @@ public class CapturingStreamTask extends StreamTask {
 		return delegate.toString(indent);
 	}
 
+	@Override
 	public boolean isClosed() {
 		return delegate.isClosed();
 	}
@@ -183,5 +210,4 @@ public class CapturingStreamTask extends StreamTask {
 	public Collection<TopicPartition> changelogPartitions() {
 		return delegate.changelogPartitions();
 	}
-
 }

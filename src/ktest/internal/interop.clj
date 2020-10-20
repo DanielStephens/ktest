@@ -1,6 +1,7 @@
 (ns ktest.internal.interop
   (:require [ktest.properties :as props])
-  (:import [org.apache.kafka.streams TopologyInternalsAccessor TopologyTestDriver CapturingStreamTask]))
+  (:import [org.apache.kafka.streams TopologyInternalsAccessor TopologyTestDriver]
+           [org.apache.kafka.streams.processor.internals CapturingStreamTask]))
 
 (defn test-driver [topology config epoch-millis output-capture]
   (let [t (TopologyTestDriver. topology (props/properties config) epoch-millis)
