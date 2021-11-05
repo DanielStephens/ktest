@@ -383,3 +383,31 @@
                               :value {:input "id"
                                       :table-value "id"}}]}
              (sut/pipe driver "join-input" {:key "k" :value "id"}))))))
+
+(defn global-kt-topology []
+  (let [builder (j/streams-builder)
+        gkt (j/global-ktable builder (topic-config "global-input"))]
+    (-> (j/kstream builder (topic-config "join-input"))
+        (j/left-join-global gkt
+                            (fn [[_ v]] v)
+                            (fn [a b] {:stream a
+                                       :global-ktable b}))
+        (j/to (topic-config "join-output")))
+    (build-topology builder)))
+
+(deftest global-kt
+  (with-open [driver (sut/driver {:key-serde edn-serde
+                                  :value-serde edn-serde}
+                                 "global-kt"
+                                 global-kt-topology)]
+    (is (= {"join-output" [{:key "k"
+                           :value {:stream "global-key"
+                                   :global-ktable nil}}]}
+           (sut/pipe driver "join-input" {:key "k" :value "global-key"})))
+
+    (sut/pipe driver "global-input" {:key "global-key" :value "global-value"})
+
+    (is (= {"join-output" [{:key "k"
+                            :value {:stream "global-key"
+                                    :global-ktable "global-value"}}]}
+           (sut/pipe driver "join-input" {:key "k" :value "global-key"})))))
