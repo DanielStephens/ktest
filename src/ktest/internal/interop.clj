@@ -41,6 +41,6 @@
                                ^Properties (properties config)
                                ^long epoch-millis)
         task (TopologyInternalsAccessor/getTestStreamTask t)
-        wrapped-task (CapturingStreamTask. task get-field output-capture)]
+        wrapped-task (when task (CapturingStreamTask. task get-field output-capture))]
     (set-stream-task t wrapped-task)
     t))

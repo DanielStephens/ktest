@@ -286,6 +286,17 @@
                             :value "v at 1"}]}
            (sut/advance-time driver 1)))))
 
+(defn empty-topo []
+  (let [builder (j/streams-builder)]
+    (build-topology builder)))
+
+(deftest empty-topology-with-no-stream-task
+  (with-open [driver (sut/driver {:key-serde edn-serde
+                                  :value-serde edn-serde}
+                                 "empty-topo" empty-topo)]
+    (is (= {}
+           (sut/advance-time driver 1)))))
+
 (defn join-topology []
   (let [builder (j/streams-builder)
         table (j/ktable builder (topic-config "table-input"))]
