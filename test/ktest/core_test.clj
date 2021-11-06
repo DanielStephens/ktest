@@ -1,44 +1,10 @@
 (ns ktest.core-test
   (:require [clojure.test :refer :all]
+            [ktest.test-utils :refer :all]
             [ktest.core :as sut]
-            [jackdaw.streams :as j]
-            [jackdaw.serdes :as serdes])
-  (:import [org.apache.kafka.streams StreamsBuilder]
-           [org.apache.kafka.streams.state Stores KeyValueStore]
-           [org.apache.kafka.streams.kstream TransformerSupplier Transformer]
-           [org.apache.kafka.streams.processor ProcessorContext PunctuationType Punctuator]))
-
-(def edn-serde (serdes/edn-serde))
-
-(def serde-config
-  {:key-serde edn-serde
-   :value-serde edn-serde})
-
-(defn topic-config
-  [topic-name]
-  (assoc serde-config
-    :topic-name topic-name))
-
-(defn build-topology
-  [builder]
-  (.build ^StreamsBuilder (j/streams-builder* builder)))
-
-(defn transformer [f]
-  (fn [] (let [s (atom {})]
-           (reify Transformer
-             (init [_ ctx] (swap! s assoc :ctx ctx))
-             (transform [_ k v] (f (:ctx @s) k v))
-             (close [_])))))
-
-(defn punctuator [delay f]
-  (fn [] (reify Transformer
-           (init [_ ctx]
-             (.schedule ^ProcessorContext ctx
-                        ^long delay PunctuationType/WALL_CLOCK_TIME
-                        (reify Punctuator
-                          (punctuate [_ epoch] (f ctx epoch)))))
-           (transform [_ _ _])
-           (close [_]))))
+            [jackdaw.streams :as j])
+  (:import [org.apache.kafka.streams.state Stores KeyValueStore ValueAndTimestamp]
+           [org.apache.kafka.streams.processor ProcessorContext]))
 
 (defn unused-topology []
   (let [builder (j/streams-builder)]
@@ -331,11 +297,11 @@
 
 (defn select-key-join-topology []
   (let [builder (j/streams-builder)
-        unused-table (-> (j/kstream builder (topic-config "table-input"))
-                         (j/select-key (fn [[_ v]] (rand-int 1000)))
-                         (j/map-values :input)
-                         (j/group-by-key serde-config)
-                         (j/reduce (fn [_ b] b) (topic-config "a")))
+        _unused-table (-> (j/kstream builder (topic-config "table-input"))
+                          (j/select-key (fn [[_ _]] (rand-int 1000)))
+                          (j/map-values :input)
+                          (j/group-by-key serde-config)
+                          (j/reduce (fn [_ b] b) (topic-config "a")))
         table (-> (j/kstream builder (topic-config "table-input"))
                   (j/select-key (fn [[_ v]] (:input v)))
                   (j/map-values :input)
@@ -386,12 +352,19 @@
 
 (defn global-kt-topology []
   (let [builder (j/streams-builder)
-        gkt (j/global-ktable builder (topic-config "global-input"))]
+        kt (j/ktable builder (topic-config "normal-input"))
+        gkt (j/global-ktable builder (topic-config "global-input"))
+        gkt2 (j/global-ktable builder (topic-config "global-input-2"))]
     (-> (j/kstream builder (topic-config "join-input"))
+        (j/map (fn [[k v]] [k {:stream v}]))
+        (j/left-join kt (fn [m b] (assoc m :normal-ktable b))
+                     serde-config serde-config)
         (j/left-join-global gkt
-                            (fn [[_ v]] v)
-                            (fn [a b] {:stream a
-                                       :global-ktable b}))
+                            (comp :stream second)
+                            (fn [m b] (assoc m :global-ktable b)))
+        (j/left-join-global gkt2
+                            (comp :stream second)
+                            (fn [m b] (assoc m :global-ktable-2 b)))
         (j/to (topic-config "join-output")))
     (build-topology builder)))
 
@@ -401,13 +374,85 @@
                                  "global-kt"
                                  global-kt-topology)]
     (is (= {"join-output" [{:key "k"
-                           :value {:stream "global-key"
-                                   :global-ktable nil}}]}
+                            :value {:stream "global-key"
+                                    :normal-ktable nil
+                                    :global-ktable nil
+                                    :global-ktable-2 nil}}]}
            (sut/pipe driver "join-input" {:key "k" :value "global-key"})))
 
+    (sut/pipe driver "normal-input" {:key "k" :value "normal-value"})
+    (sut/pipe driver "normal-input" {:key "not-k" :value "other-normal-value"})
     (sut/pipe driver "global-input" {:key "global-key" :value "global-value"})
+    (sut/pipe driver "global-input-2" {:key "global-key" :value "global-value-2"})
 
     (is (= {"join-output" [{:key "k"
                             :value {:stream "global-key"
-                                    :global-ktable "global-value"}}]}
+                                    :normal-ktable "normal-value"
+                                    :global-ktable "global-value"
+                                    :global-ktable-2 "global-value-2"}}]}
            (sut/pipe driver "join-input" {:key "k" :value "global-key"})))))
+
+(defn get-from-store
+  [ctx store-name k]
+  (let [^KeyValueStore store (.getStateStore ctx store-name)
+        ^ValueAndTimestamp vt (.get store k)]
+    (when vt (.value vt))))
+
+(defn recursive-advance-time-topology []
+  (let [builder (j/streams-builder)]
+    (-> (j/kstream builder (topic-config "trigger-1-input"))
+        (j/group-by-key)
+        (j/aggregate (constantly nil)
+                     (fn [_ [_ v]] v)
+                     (topic-config "trigger-1-store")))
+
+    (-> (j/kstream builder (topic-config "empty"))
+        (j/transform
+          (punctuator 1 (fn [ctx timestamp]
+                          (when-let [t1-value (get-from-store ctx "trigger-1-store" "key")]
+                            (.forward ctx
+                                      "key"
+                                      {:t1-timestamp timestamp
+                                       :t1-value t1-value}))))
+          ["trigger-1-store"])
+        (j/to (topic-config "trigger-2-input")))
+
+    (-> (j/kstream builder (topic-config "trigger-2-input"))
+        (j/group-by-key)
+        (j/aggregate (constantly nil)
+                     (fn [_ [_ v]] v)
+                     (topic-config "trigger-2-store")))
+
+    (-> (j/kstream builder (topic-config "empty"))
+        (j/transform
+          (punctuator 1 (fn [ctx timestamp]
+                          (when-let [t1-map (get-from-store ctx "trigger-2-store" "key")]
+                            (.forward ctx
+                                      "key"
+                                      (assoc t1-map :t2-timestamp timestamp)))))
+          ["trigger-2-store"])
+        (j/to (topic-config "output")))
+
+    (build-topology builder)))
+
+(deftest recursive-advance-time
+  (with-open [driver (sut/driver {:key-serde edn-serde
+                                  :value-serde edn-serde}
+                                 "advance-time" recursive-advance-time-topology)]
+    (is (= {}
+           (sut/advance-time driver 1)))
+
+    (sut/pipe driver "trigger-1-input" {:key "key" :value "value"})
+    (is (= {"trigger-2-input" [{:key "key"
+                                :value {:t1-timestamp 2
+                                        :t1-value "value"}}]}
+           (sut/advance-time driver 1)))
+
+    (is (= {"trigger-2-input" [{:key "key"
+                                :value {:t1-timestamp 3
+                                        :t1-value "value"}}]
+            "output" [{:key "key"
+                       :value {:t1-timestamp 2
+                               :t1-value "value"
+                               :t2-timestamp 3}}]}
+           (sut/advance-time driver 1)))))
