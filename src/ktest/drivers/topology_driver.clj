@@ -1,8 +1,9 @@
-(ns ktest.topology
-  (:require [ktest.driver :refer :all]
+(ns ktest.drivers.topology-driver
+  (:require [ktest.protocols.driver :refer :all]
             [clojure.string :as str]
             [ktest.internal.interop :as i]
-            [jackdaw.serdes :as serdes])
+            [ktest.utils :refer :all]
+            [ktest.stores :refer [alternative-store-builder]])
   (:import [org.apache.kafka.streams TopologyTestDriver TopologyInternalsAccessor]
            [org.apache.kafka.clients.consumer ConsumerRecord]
            [org.apache.kafka.common.record TimestampType]
@@ -58,30 +59,53 @@
        (mapcat (partial read-exhaustively driver))
        (map #(do {(.topic %) [{:key (.key %) :value (.value %)}]}))))
 
-(defn- munge-outputs
-  [topic-output-maps]
-  (apply merge-with concat topic-output-maps))
-
 (defn- form-output
-  [^TopologyTestDriver driver sinks repartitions]
+  [^TopologyTestDriver driver root-application-id sinks repartitions]
   (let [main-output (munge-outputs (collect-outputs driver sinks))
-        repartition-output (munge-outputs repartitions)]
-    {:output main-output
-     :repartitions repartition-output}))
+        repartition-output (->> (munge-outputs repartitions)
+                                (map (fn [[topic msgs]]
+                                       [{:repartition true
+                                         :application-id root-application-id
+                                         :topic-name topic}
+                                        msgs]))
+                                (into {}))]
+    (munge-outputs [main-output repartition-output])))
+
+(defn partitioned-application-id
+  [application-id partition-id]
+  (str application-id "-" partition-id))
+
+(defn resolve-topic
+  [root-application-id application-id sources topic]
+  (cond
+    (and (map? topic)
+         (:repartition topic)
+         (= (:application-id topic) root-application-id))
+    (str application-id
+         "-"
+         (:topic-name topic))
+
+    (contains? sources topic) topic
+
+    :else nil))
 
 (defrecord TopologyDriver
-  [opts state ^TopologyTestDriver driver application-id sources sinks repartition-topic?]
+  [opts state ^TopologyTestDriver driver
+   root-application-id application-id
+   sources sinks repartition-topic?]
   Driver
-  (pipe-raw-input [_ topic message]
-    (let [repartitions (atom [])]
-      (swap! state assoc :capture (default-capture application-id
-                                                   true
-                                                   sources
-                                                   repartition-topic?
-                                                   repartitions))
-      (.pipeInput driver
-                  (consumer-record state topic message))
-      (form-output driver sinks @repartitions)))
+  (pipe-input [_ topic message]
+    (when-let [resolved-topic (resolve-topic root-application-id application-id sources
+                                             topic)]
+      (let [repartitions (atom [])]
+        (swap! state assoc :capture (default-capture application-id
+                                                     true
+                                                     sources
+                                                     repartition-topic?
+                                                     repartitions))
+        (.pipeInput driver
+                    (consumer-record state resolved-topic message))
+        (form-output driver root-application-id sinks @repartitions))))
   (advance-time [_ advance-millis]
     (swap! state update :epoch + advance-millis)
     (let [repartitions (atom [])]
@@ -91,14 +115,19 @@
                                                    repartition-topic?
                                                    repartitions))
       (.advanceWallClockTime driver advance-millis)
-      (form-output driver sinks @repartitions)))
+      (form-output driver root-application-id sinks @repartitions)))
+  (current-time [_] (:epoch @state))
   (close [_] (.close driver)))
 
-(defn topology-driver [opts topology application-id initial-epoch]
-  (let [state (atom {:epoch initial-epoch})
+(defn driver
+  [root-application-id partition-id topology-supplier opts]
+  (let [initial-epoch (:initial-ms opts)
+        state (atom {:epoch initial-epoch})
 
+        application-id (partitioned-application-id root-application-id partition-id)
         config {"application.id" application-id
                 "bootstrap.servers" ""}
+        topology ((:topo-mutator opts) (topology-supplier) opts)
         driver (i/test-driver topology config initial-epoch
                               (fn [delegate topic-partition record]
                                 ((:capture @state) delegate topic-partition record)))
@@ -121,4 +150,6 @@
         sinks (->> (concat p-sinks gp-sinks)
                    (remove repartition-topic?)
                    (set))]
-    (->TopologyDriver opts state driver application-id sources sinks repartition-topic?)))
+    (->TopologyDriver opts state driver
+                      root-application-id application-id
+                      sources sinks repartition-topic?)))
