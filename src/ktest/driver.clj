@@ -1,7 +1,7 @@
 (ns ktest.driver
   (:require [ktest.drivers.topology-driver :as topo]
             [ktest.drivers.partitioned-driver :as ptition]
-            [ktest.drivers.recursive-internals-driver :as i-recurse]
+            [ktest.drivers.completing-internals-driver :as i-recurse]
             [ktest.drivers.combined-driver :as combi]
             [ktest.drivers.serde-driver :as serde]
             [ktest.batch-drivers.shuffle-driver :as shuffle]

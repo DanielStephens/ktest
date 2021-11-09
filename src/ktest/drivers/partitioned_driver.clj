@@ -24,7 +24,7 @@
        vals
        seq))
 
-(defrecord TopologyGroupDriver
+(defrecord PartitioningDriver
   [opts state root-application-id supplier]
   Driver
   (pipe-input [_ topic message]
@@ -49,6 +49,8 @@
                                 :errors errors})))))
 
 (defn driver
+  "Creates a driver from the driver-supplier function, for each new partition
+  encountered in order to test the locality of data."
   [application-id driver-supplier opts]
   (let [state (atom {:epoch (:initial-ms opts)})
         supplier #(driver-supplier application-id
@@ -57,4 +59,4 @@
                                      :initial-ms (:epoch @state)))]
     ;; ensure at least one topo is made, in case the first thing we do is an advance time
     (driver! state :default supplier)
-    (->TopologyGroupDriver opts state application-id supplier)))
+    (->PartitioningDriver opts state application-id supplier)))

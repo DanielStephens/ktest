@@ -9,7 +9,6 @@
 (defn clean-output
   [output]
   (->> output
-       (remove (comp map? key))
        (map (fn [[topic msgs]] [topic (map clean-msg msgs)]))
        (into {})))
 
@@ -23,5 +22,10 @@
     (current-time batch-driver))
   (close [_] (close batch-driver)))
 
-(defn batch-driver [batch-driver]
+(defn batch-driver
+  "Various drivers append extra information to message maps so rather than only
+  containing a key and value, they might also contain the topic and information
+  about repartitions.
+  This driver cleans up any such information ensuring only the key and value are returned in a message map."
+  [batch-driver]
   (->CleaningBatchDriver batch-driver))

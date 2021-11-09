@@ -1,4 +1,4 @@
-(ns ktest.drivers.recursive-internals-driver
+(ns ktest.drivers.completing-internals-driver
   (:require [ktest.protocols.driver :refer :all]
             [ktest.utils :refer :all]))
 
@@ -19,7 +19,7 @@
   (->> output
        (mapcat (fn [[topic msgs]] (map #(assoc % :topic topic) msgs)))))
 
-(defn- recursively-pipe-repartitions
+(defn- process-messages-to-completion
   [depth {:keys [recursion-limit] :as opts}
    driver inputs output]
   (if (> depth recursion-limit)
@@ -35,24 +35,28 @@
                next-input combined-output))
       output)))
 
-(defrecord InternalRecursionDriver [driver opts]
+(defrecord CompletingInternalsDriver [driver opts]
   Driver
   (pipe-input [_ topic message]
     (let [initial-result (pipe-input driver topic message)
           {:keys [real repartitions]} (split-output initial-result)]
-      (recursively-pipe-repartitions 1 opts driver
-                                     (flatten-output repartitions)
-                                     real)))
+      (process-messages-to-completion 1 opts driver
+                                      (flatten-output repartitions)
+                                      real)))
   (advance-time [_ advance-millis]
     (let [initial-result (advance-time driver advance-millis)
           {:keys [real repartitions]} (split-output initial-result)]
-      (recursively-pipe-repartitions 1 opts driver
-                                     (flatten-output repartitions)
-                                     real)))
+      (process-messages-to-completion 1 opts driver
+                                      (flatten-output repartitions)
+                                      real)))
   (current-time [_]
     (current-time driver))
   (close [_] (close driver)))
 
 (defn driver
+  "This driver collects the messages that appear on the internal repartition
+  topics and ensures that we only output the final result by pushing the
+  repartition messages back into the topology and filtering them out of the
+  result."
   [driver opts]
-  (->InternalRecursionDriver driver opts))
+  (->CompletingInternalsDriver driver opts))
