@@ -119,16 +119,25 @@
   (current-time [_] (:epoch @state))
   (close [_] (.close driver)))
 
+(defn- topo-and-config [topology-supplier]
+  (let [r (topology-supplier)]
+    (if (map? r)
+      r
+      {:topology r
+       :config {}})))
+
 (defn driver
   [root-application-id partition-id topology-supplier opts]
   (let [initial-epoch (:initial-ms opts)
         state (atom {:epoch initial-epoch})
 
+        {:keys [topology config]} (topo-and-config topology-supplier)
         application-id (partitioned-application-id root-application-id partition-id)
-        config {"application.id" application-id
-                "bootstrap.servers" ""}
-        topology ((:topo-mutator opts) (topology-supplier) opts)
-        driver (i/test-driver topology config initial-epoch
+        adjusted-config (merge {"bootstrap.servers" ""}
+                               (into {} config)
+                               {"application.id" application-id})
+        mutated-topology ((:topo-mutator opts) topology opts)
+        driver (i/test-driver mutated-topology adjusted-config initial-epoch
                               (fn [delegate topic-partition record]
                                 ((:capture @state) delegate topic-partition record)))
 
