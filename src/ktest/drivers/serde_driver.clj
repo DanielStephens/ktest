@@ -2,7 +2,7 @@
   (:require [ktest.protocols.driver :refer :all]
             [ktest.serde :refer :all]))
 
-(defrecord ReadableBatchDriver [opts driver]
+(defrecord ApplyingSerdeDriver [opts driver]
   Driver
   (pipe-input [_ topic message]
     (deserialise-output opts
@@ -15,4 +15,4 @@
 
 (defn driver
   [driver opts]
-  (->ReadableBatchDriver opts driver))
+  (->ApplyingSerdeDriver opts driver))

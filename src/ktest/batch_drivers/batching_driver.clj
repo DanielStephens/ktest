@@ -15,5 +15,6 @@
     (d/current-time driver))
   (close [_] (d/close driver)))
 
-(defn batch-driver [driver]
+(defn batch-driver
+  [driver]
   (->BatchUpDriver driver))

@@ -3,7 +3,7 @@
             [ktest.drivers.partitioned-driver :as tg]
             [ktest.utils :refer :all]))
 
-(defrecord MultiTopologyDriver
+(defrecord CombiningDriver
   [current-epoch-millis opts drivers]
   Driver
   (pipe-input [_ topic message]
@@ -27,6 +27,7 @@
                                {:errors errors})))))
 
 (defn driver
+  "Combines together multiple drivers, sending inputs to all of them"
   [drivers opts]
-  (->MultiTopologyDriver (atom (:initial-ms opts)) opts drivers))
+  (->CombiningDriver (atom (:initial-ms opts)) opts drivers))
 

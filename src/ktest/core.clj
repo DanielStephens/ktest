@@ -4,11 +4,13 @@
             [ktest.config :refer [mk-opts]]))
 
 (defn driver
-  [opts & name-topology-supplier-pairs]
-  (when-not (even? (count name-topology-supplier-pairs))
-    (throw (ex-info "Pairs of topologies and their config maps are expected" {})))
+  [opts name-topology-supplier-map]
+  {:pre [(or (nil? opts) (map? opts))
+         (map? name-topology-supplier-map)
+         (every? (comp string? key) name-topology-supplier-map)
+         (every? (comp fn? val) name-topology-supplier-map)]}
   (default-driver (mk-opts opts)
-                  (partition 2 name-topology-supplier-pairs)))
+                  name-topology-supplier-map))
 
 (defn pipe [driver topic message]
   (b/pipe-inputs driver [(assoc message :topic topic)]))

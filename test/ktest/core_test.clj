@@ -14,8 +14,7 @@
 (deftest unused
   (with-open [driver (sut/driver {:key-serde edn-serde
                                   :value-serde edn-serde}
-                                 "unused"
-                                 unused-topology)]
+                                 {"unused" unused-topology})]
     (is (= {} (sut/pipe driver "unused-input" {:key "k" :value "v"})))))
 
 (defn simple-topology []
@@ -28,8 +27,7 @@
 (deftest simple
   (with-open [driver (sut/driver {:key-serde edn-serde
                                   :value-serde edn-serde}
-                                 "simple"
-                                 simple-topology)]
+                                 {"simple" simple-topology})]
     (is (= {"simple-output" [{:key "k = key"
                               :value "v = value"}]}
            (sut/pipe driver "simple-input" {:key "k" :value "v"})))))
@@ -44,8 +42,7 @@
 (deftest through
   (with-open [driver (sut/driver {:key-serde edn-serde
                                   :value-serde edn-serde}
-                                 "through"
-                                 through-topology)]
+                                 {"through" through-topology})]
     (is (= {"through" [{:key "k"
                         :value "v"}]
             "through-output" [{:key "k"
@@ -80,8 +77,7 @@
   (testing "just aggregate"
     (with-open [driver (sut/driver {:key-serde edn-serde
                                     :value-serde edn-serde}
-                                   "agg"
-                                   agg-topology)]
+                                   {"agg" agg-topology})]
       (is (= {"agg-output" [{:key "k"
                              :value [{:k "k"
                                       :v "v1"}]}]}
@@ -100,8 +96,7 @@
   (testing "select-key then aggregate"
     (with-open [driver (sut/driver {:key-serde edn-serde
                                     :value-serde edn-serde}
-                                   "select-key-agg"
-                                   select-key-agg-topology)]
+                                   {"select-key-agg" select-key-agg-topology})]
       (is (= {"agg-output" [{:key 0
                              :value [{:k 0
                                       :v "v1"}]}]}
@@ -177,8 +172,7 @@
   (testing "transform"
     (with-open [driver (sut/driver {:key-serde edn-serde
                                     :value-serde edn-serde}
-                                   "transform"
-                                   transform-topology)]
+                                   {"transform" transform-topology})]
       (is (= {"trans-output" [{:key "k"
                                :value [{:k "k"
                                         :v "v1"}]}]}
@@ -197,8 +191,7 @@
   (testing "transform with select-key"
     (with-open [driver (sut/driver {:key-serde edn-serde
                                     :value-serde edn-serde}
-                                   "transform-select-key"
-                                   select-key-transform-topology)]
+                                   {"transform-select-key" select-key-transform-topology})]
       (is (= {"trans-output" [{:key "constant"
                                :value [{:k "constant"
                                         :v "v1"}]}]}
@@ -217,8 +210,7 @@
   (testing "transform with repartition"
     (with-open [driver (sut/driver {:key-serde edn-serde
                                     :value-serde edn-serde}
-                                   "transform-repartition"
-                                   repartition-transform-topology)]
+                                   {"transform-repartition" repartition-transform-topology})]
       (is (= {"through" [{:key "constant"
                           :value "v1"}]
               "trans-output" [{:key "constant"
@@ -261,8 +253,8 @@
 (deftest connecting
   (with-open [driver (sut/driver {:key-serde edn-serde
                                   :value-serde edn-serde}
-                                 "first" first-connected-topology
-                                 "second" second-connected-topology)]
+                                 {"first" first-connected-topology
+                                  "second" second-connected-topology})]
     (is (= {"connection" [{:key "k in first"
                            :value "v in first"}]
             "connected-output" [{:key "k in first then in second"
@@ -281,7 +273,7 @@
 (deftest advance-time
   (with-open [driver (sut/driver {:key-serde edn-serde
                                   :value-serde edn-serde}
-                                 "advance-time" advance-time-topology)]
+                                 {"advance-time" advance-time-topology})]
     (is (= {"time-output" [{:key "k"
                             :value "v at 1"}]}
            (sut/advance-time driver 1)))))
@@ -293,7 +285,7 @@
 (deftest empty-topology-with-no-stream-task
   (with-open [driver (sut/driver {:key-serde edn-serde
                                   :value-serde edn-serde}
-                                 "empty-topo" empty-topo)]
+                                 {"empty-topo" empty-topo})]
     (is (= {}
            (sut/advance-time driver 1)))))
 
@@ -331,7 +323,7 @@
   (testing "join"
     (with-open [driver (sut/driver {:key-serde edn-serde
                                     :value-serde edn-serde}
-                                   "join" join-topology)]
+                                   {"join" join-topology})]
       (is (= {} (sut/pipe driver "table-input" {:key "k" :value "v in table"})))
       (is (= {"join-output" [{:key "k"
                               :value {:input "v in input"
@@ -345,7 +337,7 @@
   (testing "join-with-select-key"
     (with-open [driver (sut/driver {:key-serde edn-serde
                                     :value-serde edn-serde}
-                                   "join" select-key-join-topology)]
+                                   {"join" select-key-join-topology})]
       (is (= {"join-output" [{:key "id"
                               :value {:input "id"
                                       :table-value nil}}]
@@ -382,8 +374,7 @@
 (deftest global-kt
   (with-open [driver (sut/driver {:key-serde edn-serde
                                   :value-serde edn-serde}
-                                 "global-kt"
-                                 global-kt-topology)]
+                                 {"global-kt" global-kt-topology})]
     (is (= {"join-output" [{:key "k"
                             :value {:stream "global-key"
                                     :normal-ktable nil
@@ -449,7 +440,7 @@
 (deftest recursive-advance-time
   (with-open [driver (sut/driver {:key-serde edn-serde
                                   :value-serde edn-serde}
-                                 "advance-time" recursive-advance-time-topology)]
+                                 {"advance-time" recursive-advance-time-topology})]
     (is (= {}
            (sut/advance-time driver 1)))
 
