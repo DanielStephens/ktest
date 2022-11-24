@@ -5,10 +5,7 @@
         digest/digest {:mvn/version "1.4.9"}}
  :aliases {:test {:extra-paths ["test"]
                   :extra-deps {com.cognitect/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
-                                                          :sha "209b64504cb3bd3b99ecfec7937b358a879f55c1"}
-                               fundingcircle/jackdaw {:mvn/version "0.8.0"
-                                                      :exclusions [io.confluent/kafka-schema-registry-client
-                                                                   io.confluent/kafka-avro-serializer]}}
+                                                          :sha "209b64504cb3bd3b99ecfec7937b358a879f55c1"}}
                   :main-opts ["-m" "cognitect.test-runner"]}
            :build {:extra-paths ["src-build"]
                    :extra-deps {badigeon/badigeon {:mvn/version "1.1"}}

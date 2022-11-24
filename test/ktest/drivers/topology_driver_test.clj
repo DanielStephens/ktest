@@ -1,7 +1,6 @@
 (ns ktest.drivers.topology-driver-test
   (:require [clojure.test :refer :all]
-            [ktest.test-utils :refer :all]
-            [jackdaw.streams :as j]
+            [ktest.test-utils :refer :all :as j]
             [ktest.drivers.topology-driver :as sut]
             [ktest.config :refer [mk-opts]]
             [ktest.protocols.driver :refer :all]
