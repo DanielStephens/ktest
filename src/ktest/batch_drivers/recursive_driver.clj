@@ -16,11 +16,18 @@
                next-input combined-output)
         combined-output))))
 
-(defrecord RecursionDriver [batch-driver opts]
+(defrecord RecursionDriver
+  [batch-driver opts]
+
   BatchDriver
-  (pipe-inputs [_ messages]
+
+  (pipe-inputs
+    [_ messages]
     (recursively-consume-messages 0 opts batch-driver messages {}))
-  (advance-time [_ advance-millis]
+
+
+  (advance-time
+    [_ advance-millis]
     (let [initial-outputs (advance-time batch-driver advance-millis)
           inputs (->> initial-outputs
                       (mapcat (fn [[topic msgs]]
@@ -29,8 +36,13 @@
                                     opts batch-driver
                                     inputs
                                     initial-outputs)))
-  (current-time [_]
+
+
+  (current-time
+    [_]
     (current-time batch-driver))
+
+
   (close [_] (close batch-driver)))
 
 (defn batch-driver

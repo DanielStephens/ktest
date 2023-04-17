@@ -1,16 +1,26 @@
 (ns ktest.drivers.topology-driver
-  (:require [ktest.protocols.driver :refer :all]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [ktest.internal.interop :as i]
-            [ktest.utils :refer :all]
-            [ktest.stores :refer [alternative-store-builder]])
-  (:import [org.apache.kafka.streams TopologyTestDriver TopologyInternalsAccessor]
-           [org.apache.kafka.clients.consumer ConsumerRecord]
-           [org.apache.kafka.common.record TimestampType]
-           [org.apache.kafka.common TopicPartition]
-           [org.apache.kafka.streams.processor.internals StreamTask]))
+            [ktest.protocols.driver :refer :all]
+            [ktest.stores :refer [alternative-store-builder]]
+            [ktest.utils :refer :all])
+  (:import (java.time
+            Duration
+            Instant)
+           (org.apache.kafka.clients.consumer
+            ConsumerRecord)
+           (org.apache.kafka.common
+            TopicPartition)
+           (org.apache.kafka.common.record
+            TimestampType)
+           (org.apache.kafka.streams
+            TopologyInternalsAccessor
+            TopologyTestDriver)
+           (org.apache.kafka.streams.processor.internals
+            StreamTask)))
 
-(defn- consumer-record [state topic {:keys [key value]}]
+(defn- consumer-record
+  [state topic {:keys [key value]}]
   (ConsumerRecord. topic
                    0 0
                    (:epoch @state) TimestampType/CREATE_TIME
@@ -24,7 +34,8 @@
     (subs topic (inc (count application-id)))
     (throw (ex-info "This method should only be called with a topologies repartition topics" {}))))
 
-(defn- default-capture [application-id allow-first? source? repartition-topic? repartitions]
+(defn- default-capture
+  [application-id allow-first? source? repartition-topic? repartitions]
   (let [first-time? (atom allow-first?)]
     (fn [^StreamTask delegate ^TopicPartition topic-partition message]
       (let [[first-time? _] (reset-vals! first-time? false)
@@ -51,23 +62,34 @@
           ;; let it go through the current topology
           :else (.addRecords delegate topic-partition [message]))))))
 
-(defn- read-exhaustively [^TopologyTestDriver driver sink]
-  (take-while some? (repeatedly #(.readOutput driver sink))))
+(defn- read-exhaustively
+  [^TopologyTestDriver driver sink opts]
+  (->> (.createOutputTopic driver sink (.deserializer (:key-serde opts)) (.deserializer (:value-serde opts)))
+       (.readRecordsToList)
+       (map #(do {sink [{:key (.key %) :value (.value %)}]}))))
 
-(defn- collect-outputs [^TopologyTestDriver driver sinks]
+(defn- collect-outputs
+  [^TopologyTestDriver driver sinks opts]
   (->> sinks
-       (mapcat (partial read-exhaustively driver))
-       (map #(do {(.topic %) [{:key (.key %) :value (.value %)}]}))))
+       (mapcat #(read-exhaustively driver % opts))))
+
+(defn- deserialize-msg
+  [opts topic msg]
+  (let [key-deserilizer (.deserializer (:key-serde opts))
+        value-deserilizer (.deserializer (:value-serde opts))]
+    (-> msg
+        (update :key #(.deserialize key-deserilizer topic %))
+        (update :value #(.deserialize value-deserilizer topic %)))))
 
 (defn- form-output
-  [^TopologyTestDriver driver root-application-id sinks repartitions]
-  (let [main-output (munge-outputs (collect-outputs driver sinks))
+  [^TopologyTestDriver driver root-application-id sinks repartitions opts]
+  (let [main-output (munge-outputs (collect-outputs driver sinks opts))
         repartition-output (->> (munge-outputs repartitions)
                                 (map (fn [[topic msgs]]
                                        [{:repartition true
                                          :application-id root-application-id
                                          :topic-name topic}
-                                        msgs]))
+                                        (map (partial deserialize-msg opts topic) msgs)]))
                                 (into {}))]
     (munge-outputs [main-output repartition-output])))
 
@@ -92,34 +114,45 @@
 (defrecord TopologyDriver
   [opts state ^TopologyTestDriver driver
    root-application-id application-id
-   sources sinks repartition-topic?]
+   sources sinks repartition-topic? key-serde value-serde]
+
   Driver
-  (pipe-input [_ topic message]
+
+  (pipe-input
+    [_ topic message]
     (when-let [resolved-topic (resolve-topic root-application-id application-id sources
                                              topic)]
-      (let [repartitions (atom [])]
+      (let [repartitions (atom [])
+            input-topic (.createInputTopic driver resolved-topic (.serializer key-serde) (.serializer value-serde))]
         (swap! state assoc :capture (default-capture application-id
-                                                     true
-                                                     sources
-                                                     repartition-topic?
-                                                     repartitions))
-        (.pipeInput driver
-                    (consumer-record state resolved-topic message))
-        (form-output driver root-application-id sinks @repartitions))))
-  (advance-time [_ advance-millis]
+                                      true
+                                      sources
+                                      repartition-topic?
+                                      repartitions))
+        (.pipeInput input-topic (:key message) (:value message))
+        (form-output driver root-application-id sinks @repartitions opts))))
+
+
+  (advance-time
+    [_ advance-millis]
     (swap! state update :epoch + advance-millis)
     (let [repartitions (atom [])]
       (swap! state assoc :capture (default-capture application-id
-                                                   false
-                                                   sources
-                                                   repartition-topic?
-                                                   repartitions))
-      (.advanceWallClockTime driver advance-millis)
-      (form-output driver root-application-id sinks @repartitions)))
+                                    false
+                                    sources
+                                    repartition-topic?
+                                    repartitions))
+      (.advanceWallClockTime driver (Duration/ofMillis advance-millis))
+      (form-output driver root-application-id sinks @repartitions opts)))
+
+
   (current-time [_] (:epoch @state))
+
+
   (close [_] (.close driver)))
 
-(defn- topo-and-config [topology-supplier]
+(defn- topo-and-config
+  [topology-supplier]
   (let [r (topology-supplier)]
     (if (map? r)
       r
@@ -128,8 +161,8 @@
 
 (defn driver
   [root-application-id partition-id topology-supplier opts]
-  (let [initial-epoch (:initial-ms opts)
-        state (atom {:epoch initial-epoch})
+  (let [initial-epoch (Instant/ofEpochMilli (:initial-ms opts))
+        state (atom {:epoch (:initial-ms opts)})
 
         {:keys [topology config]} (topo-and-config topology-supplier)
         application-id (partitioned-application-id root-application-id partition-id)
@@ -161,4 +194,5 @@
                    (set))]
     (->TopologyDriver opts state driver
                       root-application-id application-id
-                      sources sinks repartition-topic?)))
+                      sources sinks repartition-topic?
+                      (:key-serde opts) (:value-serde opts))))

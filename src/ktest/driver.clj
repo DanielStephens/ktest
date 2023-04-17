@@ -1,13 +1,12 @@
 (ns ktest.driver
-  (:require [ktest.drivers.topology-driver :as topo]
-            [ktest.drivers.partitioned-driver :as ptition]
-            [ktest.drivers.completing-internals-driver :as i-recurse]
-            [ktest.drivers.combined-driver :as combi]
-            [ktest.drivers.serde-driver :as serde]
-            [ktest.batch-drivers.shuffle-driver :as shuffle]
-            [ktest.batch-drivers.recursive-driver :as recurse]
-            [ktest.batch-drivers.batching-driver :as batching]
+  (:require [ktest.batch-drivers.batching-driver :as batching]
             [ktest.batch-drivers.clean-output-driver :as clean]
+            [ktest.batch-drivers.recursive-driver :as recurse]
+            [ktest.batch-drivers.shuffle-driver :as shuffle]
+            [ktest.drivers.combined-driver :as combi]
+            [ktest.drivers.completing-internals-driver :as i-recurse]
+            [ktest.drivers.partitioned-driver :as ptition]
+            [ktest.drivers.topology-driver :as topo]
             [ktest.utils :refer :all]))
 
 (defn partitioned-driver
@@ -38,8 +37,7 @@
 (defn default-driver
   [opts name-topology-supplier-pairs]
   (cond-> (combi-driver opts name-topology-supplier-pairs)
-          true (serde/driver opts)
-          true (batching/batch-driver)
-          (:shuffle opts) (shuffle/batch-driver opts)
-          (:recurse opts) (recurse/batch-driver opts)
-          true (clean/batch-driver)))
+    true (batching/batch-driver)
+    (:shuffle opts) (shuffle/batch-driver opts)
+    (:recurse opts) (recurse/batch-driver opts)
+    true (clean/batch-driver)))

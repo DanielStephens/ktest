@@ -1,15 +1,19 @@
 (ns ktest.batch-drivers.shuffle-driver-test
   (:require [clojure.test :refer :all]
-            [ktest.protocols.batch-driver :refer :all]
-            [ktest.batch-drivers.shuffle-driver :as sut]))
+            [ktest.batch-drivers.shuffle-driver :as sut]
+            [ktest.protocols.batch-driver :refer :all]))
 
 (def noop-delegate
   (reify
     BatchDriver
-    (pipe-inputs [_ messages]
+    (pipe-inputs
+      [_ messages]
       messages)
+
     (advance-time [_ _])
+
     (current-time [_] 0)
+
     (close [_])))
 
 (defn shuffle-driver

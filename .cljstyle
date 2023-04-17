@@ -1,0 +1,9 @@
+{:files {:ignore #{"checkouts" "target"}}
+ :rules {:blank-lines {:max-consecutive 1
+                       :trim-consecutive? true
+                       :insert-padding? false}
+         :whitespace {:remove-surrounding? true
+                      :remove-trailing? true
+                      :insert-missing? true}
+         :namespaces {:break-libs? false}
+         :indentation {:list-indent 1}}}

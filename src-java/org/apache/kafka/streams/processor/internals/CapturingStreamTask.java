@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.metrics.Metrics;
 import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.common.utils.LogContext;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.processor.Cancellable;
 import org.apache.kafka.streams.processor.PunctuationType;
@@ -20,6 +21,9 @@ import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.internals.metrics.StreamsMetricsImpl;
 import org.apache.kafka.streams.state.internals.ThreadCache;
+import org.apache.kafka.streams.TopologyConfig.TaskConfig;
+import org.apache.kafka.streams.TopologyConfig;
+
 
 import clojure.lang.IFn;
 
@@ -28,11 +32,15 @@ public class CapturingStreamTask extends StreamTask {
 	private final StreamTask delegate;
 	private final IFn capture;
 
-	private static StreamsConfig dumbConfig() {
-		HashMap<String, String> m = new HashMap<>();
-		m.put("application.id", "");
-		m.put("bootstrap.servers", "");
-		return new ClientUtils.QuietStreamsConfig(m);
+  private static StreamsConfig dumbConfigStreams() {
+    HashMap<String, String> m = new HashMap<>();
+    m.put("application.id", "");
+    m.put("bootstrap.servers", "");
+    return new ClientUtils.QuietStreamsConfig(m);
+  }
+
+	private static TaskConfig dumbConfigTask() {
+      return new TopologyConfig(dumbConfigStreams()).getTaskConfig();
 	}
 
 	private static StreamsMetricsImpl dumbMetrics(Time t) {
@@ -50,7 +58,7 @@ public class CapturingStreamTask extends StreamTask {
 				delegate.inputPartitions(),
 				delegate.topology,
 				(Consumer<byte[], byte[]>) privateFieldGetter.invoke(delegate, "mainConsumer"),
-				dumbConfig(),
+				dumbConfigTask(),
 				dumbMetrics((Time) privateFieldGetter.invoke(delegate, "time")),
 				delegate.stateDirectory,
 				null,
@@ -59,12 +67,13 @@ public class CapturingStreamTask extends StreamTask {
 				(RecordCollector) privateFieldGetter.invoke(delegate, "recordCollector"),
 				new ProcessorContextImpl(
 						delegate.id(),
-						dumbConfig(), delegate.stateMgr,
+						dumbConfigStreams(), delegate.stateMgr,
 						dumbMetrics((Time) privateFieldGetter.invoke(delegate, "time")),
 						null) {
 					@Override
 					public void transitionToActive(StreamTask streamTask, RecordCollector recordCollector, ThreadCache newCache) { }
-				});
+				},
+        new LogContext( "streams-task"));
 		this.delegate = delegate;
 		this.capture = capture;
 	}
@@ -133,11 +142,6 @@ public class CapturingStreamTask extends StreamTask {
 	@Override
 	public void closeCleanAndRecycleState() {
 		delegate.closeCleanAndRecycleState();
-	}
-
-	@Override
-	public void maybeWriteCheckpoint(boolean enforceCheckpoint) {
-		delegate.maybeWriteCheckpoint(enforceCheckpoint);
 	}
 
 	@Override

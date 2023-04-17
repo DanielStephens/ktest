@@ -1,10 +1,26 @@
 (ns ktest.stores
-  (:import [org.apache.kafka.streams TopologyInternalsAccessor]
-           [org.apache.kafka.streams.processor.internals InternalTopologyBuilder InternalTopologyBuilder$StateStoreFactory]
-           [org.apache.kafka.streams.state.internals TimestampedKeyValueStoreBuilder AbstractStoreBuilder StoreAccessor ValueAndTimestampSerde ValueAndTimestampDeserializer KeyValueStoreBuilder WindowStoreBuilder TimestampedWindowStoreBuilder SessionStoreBuilder]
-           [org.apache.kafka.streams.state Stores StoreBuilder]
-           [java.time Duration]
-           [org.apache.kafka.streams.processor StateStore]))
+  (:import (java.time
+            Duration)
+           (org.apache.kafka.streams
+            TopologyInternalsAccessor)
+           (org.apache.kafka.streams.processor
+            StateStore)
+           (org.apache.kafka.streams.processor.internals
+            InternalTopologyBuilder
+            InternalTopologyBuilder$StateStoreFactory)
+           (org.apache.kafka.streams.state
+            StoreBuilder
+            Stores)
+           (org.apache.kafka.streams.state.internals
+            AbstractStoreBuilder
+            KeyValueStoreBuilder
+            SessionStoreBuilder
+            StoreAccessor
+            TimestampedKeyValueStoreBuilder
+            TimestampedWindowStoreBuilder
+            ValueAndTimestampDeserializer
+            ValueAndTimestampSerde
+            WindowStoreBuilder)))
 
 (def ^:private store-factory-users-field
   (let [f (.getDeclaredField InternalTopologyBuilder$StateStoreFactory "users")]
@@ -23,18 +39,34 @@
 
 (defrecord SingletonStoreBuilder
   [^StoreBuilder sb ^StateStore s]
+
   StoreBuilder
+
   (build [_] s)
+
+
   (withCachingEnabled [this] this)
+
+
   (withCachingDisabled [this] this)
+
+
   (withLoggingEnabled [this _] this)
+
+
   (withLoggingDisabled [this] this)
+
+
   (logConfig [_] (.logConfig sb))
+
+
   (loggingEnabled [_] (.loggingEnabled sb))
+
+
   (name [_] (.name sb)))
 
 (defmulti find-known-alternative
-          (fn [builder _store-name] (type builder)))
+  (fn [builder _store-name] (type builder)))
 
 (defmethod find-known-alternative :default
   [builder store-name]
@@ -45,33 +77,36 @@
   [builder _]
   builder)
 
-(defn key-serde [^AbstractStoreBuilder builder]
+(defn key-serde
+  [^AbstractStoreBuilder builder]
   (StoreAccessor/keySerde builder))
 
-(defn value-serde [^AbstractStoreBuilder builder]
+(defn value-serde
+  [^AbstractStoreBuilder builder]
   (StoreAccessor/valueSerde builder))
 
-(defn de-timestamp-serde [^ValueAndTimestampSerde serde]
+(defn de-timestamp-serde
+  [^ValueAndTimestampSerde serde]
   (StoreAccessor/deTimestampSerde serde))
 
 (defmethod find-known-alternative KeyValueStoreBuilder
   [builder store-name]
   (Stores/keyValueStoreBuilder
-    (Stores/inMemoryKeyValueStore store-name)
-    (key-serde builder) (value-serde builder)))
+   (Stores/inMemoryKeyValueStore store-name)
+   (key-serde builder) (value-serde builder)))
 
 (defmethod find-known-alternative TimestampedKeyValueStoreBuilder
   [builder store-name]
   (Stores/timestampedKeyValueStoreBuilder
-    (Stores/inMemoryKeyValueStore store-name)
-    (key-serde builder) (de-timestamp-serde (value-serde builder))))
+   (Stores/inMemoryKeyValueStore store-name)
+   (key-serde builder) (de-timestamp-serde (value-serde builder))))
 
 (defmethod find-known-alternative SessionStoreBuilder
   [builder store-name]
   (Stores/sessionStoreBuilder
-    (Stores/inMemorySessionStore store-name
-                                 (Duration/ofMillis (.retentionPeriod builder)))
-    (key-serde builder) (value-serde builder)))
+   (Stores/inMemorySessionStore store-name
+                                (Duration/ofMillis (.retentionPeriod builder)))
+   (key-serde builder) (value-serde builder)))
 
 ;; can't be bothered to get window sizes currently
 

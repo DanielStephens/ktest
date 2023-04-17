@@ -1,16 +1,12 @@
 (ns ktest.drivers.topology-driver-test
   (:require [clojure.test :refer :all]
-            [ktest.test-utils :refer :all :as j]
-            [ktest.drivers.topology-driver :as sut]
             [ktest.config :refer [mk-opts]]
+            [ktest.drivers.topology-driver :as sut]
             [ktest.protocols.driver :refer :all]
-            [ktest.serde :refer :all]))
+            [ktest.serde :refer :all]
+            [ktest.test-utils :refer :all :as j]))
 
 (def opts (mk-opts serde-config))
-
-(defn send-with-serde
-  [driver topic msg]
-  (deserialise-output opts (pipe-input driver topic (serialise opts topic msg))))
 
 (defn repartition-transform-topology
   []
@@ -19,8 +15,9 @@
     (-> (j/kstream builder (topic-config "stream-input"))
         (j/select-key (constantly "constant"))
         (j/left-join kt
-                     (fn [a b] {:stream a
-                                :table b})
+                     (fn [a b]
+                       {:stream a
+                        :table b})
                      serde-config serde-config)
         (j/to (topic-config "join-output")))
     (build-topology builder)))
@@ -31,21 +28,21 @@
                                  repartition-transform-topology
                                  opts)]
     (is (= {}
-           (send-with-serde driver "table-input" {:key "constant" :value "table1"})))
+           (pipe-input driver "table-input" {:key "constant" :value "table1"})))
 
     (is (= {{:repartition true
              :application-id "application-id"
              :topic-name "KSTREAM-KEY-SELECT-0000000003-repartition"}
             [{:key "constant"
               :value "v1"}]}
-           (send-with-serde driver "stream-input" {:key "k" :value "v1"})))
+           (pipe-input driver "stream-input" {:key "k" :value "v1"})))
 
     (is (= {"join-output" [{:key "constant"
                             :value {:stream "v1"
                                     :table "table1"}}]}
-           (send-with-serde driver
-                            {:repartition true
-                             :application-id "application-id"
-                             :topic-name "KSTREAM-KEY-SELECT-0000000003-repartition"}
-                            {:key "constant"
-                             :value "v1"})))))
+           (pipe-input driver
+                       {:repartition true
+                        :application-id "application-id"
+                        :topic-name "KSTREAM-KEY-SELECT-0000000003-repartition"}
+                       {:key "constant"
+                        :value "v1"})))))
