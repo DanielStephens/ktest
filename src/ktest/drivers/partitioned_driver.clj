@@ -7,7 +7,7 @@
 
 (defn- message-partition
   [opts topic message]
-  ((:partition opts) topic message))
+  ((:partition opts) topic message opts))
 
 (defn- partitioned-id
   [partition]

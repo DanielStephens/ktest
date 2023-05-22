@@ -10,8 +10,11 @@
       stores/mutate-to-fast-stores))
 
 (defn default-partition-strategy
-  [_topic {:keys [key] :as msg}]
-  (vec (str key)))
+  [topic {:keys [key] :as msg} {:keys [key-serde]}]
+  (let [topic-name (if (string? topic) topic (:topic-name topic))]
+    (->> key
+         (.serialize (.serializer key-serde) topic-name)
+         (.deserialize (.deserializer key-serde) topic-name))))
 
 (defn default-opts
   []

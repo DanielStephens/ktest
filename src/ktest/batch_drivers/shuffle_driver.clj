@@ -9,7 +9,7 @@
 
 (defn- message-partition
   [opts topic message]
-  ((:partition opts) topic message))
+  ((:partition opts) topic message opts))
 
 (defn- shuffle-with-random
   [^Collection coll ^Random random]

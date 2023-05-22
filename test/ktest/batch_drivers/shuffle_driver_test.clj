@@ -20,7 +20,7 @@
   [seed]
   (sut/batch-driver noop-delegate
                     {:partition (fn default-partition-strategy
-                                  [_ {:keys [key]}]
+                                  [_ {:keys [key]} _f]
                                   key)
                      :seed seed}))
 

@@ -332,11 +332,11 @@
   (testing "join"
     (with-open [driver (sut/driver j/serde-config
                                    {"join" join-topology})]
-      (is (= {} (sut/pipe driver "table-input" {:key "k" :value "v in table"})))
-      (is (= {"join-output" [{:key "k"
+      (is (= {} (sut/pipe driver "table-input" {:key ["k" "p"] :value "v in table"})))
+      (is (= {"join-output" [{:key ["k" "p"]
                               :value {:input "v in input"
                                       :table-value "v in table"}}]}
-             (sut/pipe driver "join-input" {:key "k" :value "v in input"})))
+             (sut/pipe driver "join-input" {:key ["k" "p"] :value "v in input"})))
       (is (= {"join-output" [{:key "k2"
                               :value {:input "v in input"
                                       :table-value nil}}]}
@@ -467,3 +467,102 @@
                                :t1-value "value"
                                :t2-timestamp 3}}]}
            (sut/advance-time driver 1)))))
+
+(defn- range-key
+  [foreign-key position & more]
+  ;; Uses a swap between zero '0', one '1', and two '2' to be able to produce
+  ;; keys that are guaranteed to be before/within/after the foreign-key based
+  ;; range when querying with RocksDB.
+  (let [delimiter \b
+        p-char (case position
+                 :before \0
+                 :within \1
+                 :after \2)]
+    (str foreign-key delimiter
+         p-char delimiter
+         more)))
+
+(defn within-range-key
+  [foreign-key primary-key]
+  (range-key foreign-key :within primary-key))
+
+(defn before-range-key
+  [foreign-key]
+  (range-key foreign-key :before))
+
+(defn after-range-key
+  [foreign-key]
+  (range-key foreign-key :after))
+
+(defn store-by-range-key
+  [^ProcessorContext ctx store-name foreign-key original-key original-value]
+  (let [store (.getStateStore ctx store-name)
+        k (within-range-key foreign-key original-key)]
+    (.put store k original-value)))
+
+(defn range-topology
+  []
+  (let [builder (j/streams-builder)]
+    (.addStateStore builder
+                    (Stores/keyValueStoreBuilder
+                     (Stores/persistentKeyValueStore "trans-store")
+                     j/edn-serde j/edn-serde))
+    (-> (j/kstream builder (j/topic-config "range-input"))
+        (j/transform
+         (j/transformer
+          (fn [^ProcessorContext ctx k v]
+            (store-by-range-key ctx "trans-store" k (:original-key v) v)
+            nil))
+         ["trans-store"]))
+    (-> (j/kstream builder (j/topic-config "input"))
+        (j/transform
+         (j/transformer
+          (fn [^ProcessorContext ctx k v]
+            (let [^KeyValueStore store (.getStateStore ctx "trans-store")]
+              (doseq [kv-java (iterator-seq (.range store (before-range-key k) (after-range-key k)))]
+                (.forward ctx (.key kv-java) (.value kv-java))))))
+         ["trans-store"])
+        (j/to (j/topic-config "output")))
+    (j/build-topology builder)))
+
+(deftest range-test
+  (testing "simple-single-range-string"
+    (let [partition-key "determines-partition"]
+      (with-open [driver (sut/driver j/serde-config
+                                     {"transform" range-topology})]
+        (is (= {}
+               (sut/pipe driver "range-input" {:key partition-key
+                                               :value {:original-key "unique-key-1"
+                                                       :foo :bar}})))
+        (is (= {"output" [{:key (within-range-key partition-key "unique-key-1")
+                           :value {:original-key "unique-key-1"
+                                   :foo :bar}}]}
+               (sut/pipe driver "input" {:key partition-key :value "v2"}))))))
+  (testing "simple-single-range-vec"
+    (let [partition-key ["foo" "bar"]]
+      (with-open [driver (sut/driver j/serde-config
+                                     {"transform" range-topology})]
+        (is (= {}
+               (sut/pipe driver "range-input" {:key partition-key
+                                               :value {:original-key "unique-key-1"
+                                                       :foo :bar}})))
+        (is (= {"output" [{:key (within-range-key partition-key "unique-key-1")
+                           :value {:original-key "unique-key-1"
+                                   :foo :bar}}]}
+               (sut/pipe driver "input" {:key partition-key :value "v2"}))))))
+  (testing "simple-multiple-range-int"
+    (let [partition-key "determines-partition"]
+      (with-open [driver (sut/driver j/serde-config
+                                     {"transform" range-topology})]
+        (doseq [i (range 10)]
+          (is (= {}
+                 (sut/pipe driver "range-input" {:key partition-key
+                                                 :value {:original-key i
+                                                         :foo :bar}}))))
+        (is (= {"output" (map
+                          (fn [i]
+                            {:key (within-range-key partition-key i)
+                             :value {:original-key i
+                                     :foo :bar}})
+                          (range 10))}
+               (sut/pipe driver "input" {:key partition-key :value "v2"})))))))
