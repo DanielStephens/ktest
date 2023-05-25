@@ -1,5 +1,6 @@
 (ns ktest.utils
-  (:import [java.util Random]))
+  (:import (java.util
+            Random)))
 
 (defn genid
   []

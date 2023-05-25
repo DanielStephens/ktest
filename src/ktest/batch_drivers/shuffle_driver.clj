@@ -1,10 +1,15 @@
 (ns ktest.batch-drivers.shuffle-driver
   (:require [ktest.protocols.batch-driver :refer :all]
             [ktest.utils :refer :all])
-  (:import [java.util Collection Random Collections ArrayList]))
+  (:import (java.util
+            ArrayList
+            Collection
+            Collections
+            Random)))
 
-(defn- message-partition [opts topic message]
-  ((:partition opts) topic message))
+(defn- message-partition
+  [opts topic message]
+  ((:partition opts) topic message opts))
 
 (defn- shuffle-with-random
   [^Collection coll ^Random random]
@@ -16,8 +21,8 @@
   [opts messages ^Random random]
   (let [enriched-msgs (map-indexed (fn [i msg]
                                      (assoc msg
-                                       :partition (message-partition opts (:topic msg) msg)
-                                       :index i))
+                                            :partition (message-partition opts (:topic msg) msg)
+                                            :index i))
                                    messages)
         partitions (group-by (juxt :topic :partition) enriched-msgs)
 
@@ -33,15 +38,27 @@
     (->> with-reordered-partitions
          (map #(dissoc % :partition :index)))))
 
-(defrecord ShuffleDriver [opts delegate-batch-driver random]
+(defrecord ShuffleDriver
+  [opts delegate-batch-driver random]
+
   BatchDriver
-  (pipe-inputs [_ messages]
+
+  (pipe-inputs
+    [_ messages]
     (pipe-inputs delegate-batch-driver
                  (shuffle-with-maintained-partitions opts messages random)))
-  (advance-time [_ advance-millis]
+
+
+  (advance-time
+    [_ advance-millis]
     (advance-time delegate-batch-driver advance-millis))
-  (current-time [_]
+
+
+  (current-time
+    [_]
     (current-time delegate-batch-driver))
+
+
   (close [_] (close delegate-batch-driver)))
 
 (defn batch-driver

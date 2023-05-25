@@ -1,5 +1,8 @@
 (ns ktest.serde
-  (:import [org.apache.kafka.common.serialization Serde Serializer Deserializer]))
+  (:import (org.apache.kafka.common.serialization
+            Deserializer
+            Serde
+            Serializer)))
 
 (defn topic-name
   [topic]
@@ -22,7 +25,8 @@
 (defn deserialise-output
   [opts messages]
   (->> messages
-       (map (fn [[topic ms]] [topic (mapv #(deserialise opts
-                                                        topic
-                                                        %) ms)]))
+       (map (fn [[topic ms]]
+              [topic (mapv #(deserialise opts
+                                         topic
+                                         %) ms)]))
        (into {})))

@@ -12,14 +12,26 @@
        (map (fn [[topic msgs]] [topic (map clean-msg msgs)]))
        (into {})))
 
-(defrecord CleaningBatchDriver [batch-driver]
+(defrecord CleaningBatchDriver
+  [batch-driver]
+
   BatchDriver
-  (pipe-inputs [_ messages]
+
+  (pipe-inputs
+    [_ messages]
     (clean-output (pipe-inputs batch-driver messages)))
-  (advance-time [_ advance-millis]
+
+
+  (advance-time
+    [_ advance-millis]
     (clean-output (advance-time batch-driver advance-millis)))
-  (current-time [_]
+
+
+  (current-time
+    [_]
     (current-time batch-driver))
+
+
   (close [_] (close batch-driver)))
 
 (defn batch-driver

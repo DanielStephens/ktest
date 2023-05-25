@@ -1,11 +1,18 @@
 (ns ktest.core-test
   (:require [clojure.test :refer :all]
-            [ktest.test-utils :as j]
-            [ktest.core :as sut])
-  (:import [org.apache.kafka.streams.state Stores KeyValueStore ValueAndTimestamp]
-           [org.apache.kafka.streams.processor ProcessorContext]))
+            [ktest.core :as sut]
+            [ktest.test-utils :as j])
+  (:import (java.time
+            Duration)
+           (org.apache.kafka.streams.processor
+            ProcessorContext)
+           (org.apache.kafka.streams.state
+            KeyValueStore
+            Stores
+            ValueAndTimestamp)))
 
-(defn unused-topology []
+(defn unused-topology
+  []
   (let [builder (j/streams-builder)]
     (j/kstream builder (j/topic-config "unused-input"))
     (j/build-topology builder)))
@@ -15,7 +22,8 @@
                                  {"unused" unused-topology})]
     (is (= {} (sut/pipe driver "unused-input" {:key "k" :value "v"})))))
 
-(defn simple-topology []
+(defn simple-topology
+  []
   (let [builder (j/streams-builder)]
     (-> (j/kstream builder (j/topic-config "simple-input"))
         (j/map (fn [[k v]] [(str k " = key") (str v " = value")]))
@@ -29,7 +37,8 @@
                               :value "v = value"}]}
            (sut/pipe driver "simple-input" {:key "k" :value "v"})))))
 
-(defn through-topology []
+(defn through-topology
+  []
   (let [builder (j/streams-builder)]
     (-> (j/kstream builder (j/topic-config "through-input"))
         (j/through (j/topic-config "through"))
@@ -45,7 +54,8 @@
                                :value "v"}]}
            (sut/pipe driver "through-input" {:key "k" :value "v"})))))
 
-(defn agg-topology []
+(defn agg-topology
+  []
   (let [builder (j/streams-builder)]
     (-> (j/kstream builder (j/topic-config "agg-input"))
         (j/group-by-key)
@@ -56,7 +66,8 @@
         (j/to (j/topic-config "agg-output")))
     (j/build-topology builder)))
 
-(defn select-key-agg-topology []
+(defn select-key-agg-topology
+  []
   (let [builder (j/streams-builder)]
     (-> (j/kstream builder (j/topic-config "agg-input"))
         (j/select-key (constantly 0))
@@ -101,63 +112,66 @@
                                       :v "v2"}]}]}
              (sut/pipe driver "agg-input" {:key "other" :value "v2"}))))))
 
-(defn transform-topology []
+(defn transform-topology
+  []
   (let [builder (j/streams-builder)]
     (.addStateStore builder
                     (Stores/keyValueStoreBuilder
-                      (Stores/persistentKeyValueStore "trans-store")
-                      j/edn-serde j/edn-serde))
+                     (Stores/persistentKeyValueStore "trans-store")
+                     j/edn-serde j/edn-serde))
     (-> (j/kstream builder (j/topic-config "trans-input"))
         (j/transform
-          (j/transformer
-            (fn [^ProcessorContext ctx k v]
-              (let [^KeyValueStore store (.getStateStore ctx "trans-store")
-                    current (or (.get store "constant") [])
-                    next (conj current {:k k :v v})]
-                (.put store "constant" next)
-                (.forward ctx k next))))
-          ["trans-store"])
+         (j/transformer
+          (fn [^ProcessorContext ctx k v]
+            (let [^KeyValueStore store (.getStateStore ctx "trans-store")
+                  current (or (.get store "constant") [])
+                  next (conj current {:k k :v v})]
+              (.put store "constant" next)
+              (.forward ctx k next))))
+         ["trans-store"])
         (j/to (j/topic-config "trans-output")))
     (j/build-topology builder)))
 
-(defn select-key-transform-topology []
+(defn select-key-transform-topology
+  []
   (let [builder (j/streams-builder)]
     (.addStateStore builder
                     (Stores/keyValueStoreBuilder
-                      (Stores/persistentKeyValueStore "trans-store")
-                      j/edn-serde j/edn-serde))
+                     (Stores/persistentKeyValueStore "trans-store")
+                     j/edn-serde j/edn-serde))
     (-> (j/kstream builder (j/topic-config "trans-input"))
         (j/select-key (constantly "constant"))
         (j/transform
-          (j/transformer
-            (fn [^ProcessorContext ctx k v]
-              (let [^KeyValueStore store (.getStateStore ctx "trans-store")
-                    current (or (.get store "constant") [])
-                    next (conj current {:k k :v v})]
-                (.put store "constant" next)
-                (.forward ctx k next))))
-          ["trans-store"])
+         (j/transformer
+          (fn [^ProcessorContext ctx k v]
+            (let [^KeyValueStore store (.getStateStore ctx "trans-store")
+                  current (or (.get store "constant") [])
+                  next (conj current {:k k :v v})]
+              (.put store "constant" next)
+              (.forward ctx k next))))
+         ["trans-store"])
         (j/to (j/topic-config "trans-output")))
     (j/build-topology builder)))
 
-(defn repartition-transform-topology []
+(defn repartition-transform-topology
+  []
   (let [builder (j/streams-builder)]
     (.addStateStore builder
                     (Stores/keyValueStoreBuilder
-                      (Stores/persistentKeyValueStore "trans-store")
-                      j/edn-serde j/edn-serde))
+                     (Stores/persistentKeyValueStore "trans-store")
+                     j/edn-serde j/edn-serde))
     (-> (j/kstream builder (j/topic-config "trans-input"))
         (j/select-key (constantly "constant"))
         (j/through (j/topic-config "through"))
         (j/transform
-          (j/transformer
-            (fn [^ProcessorContext ctx k v]
-              (let [^KeyValueStore store (.getStateStore ctx "trans-store")
-                    current (or (.get store "constant") [])
-                    next (conj current {:k k :v v})]
-                (.put store "constant" next)
-                (.forward ctx k next))))
-          ["trans-store"])
+         (j/transformer
+          (fn [^ProcessorContext ctx k v]
+            (let [^KeyValueStore store (.getStateStore ctx "trans-store")
+                  current (or (.get store "constant") [])
+                  next (conj current {:k k :v v})]
+              (.put store "constant" next)
+              (.forward ctx k next))))
+         ["trans-store"])
         (j/to (j/topic-config "trans-output")))
     (j/build-topology builder)))
 
@@ -226,14 +240,16 @@
                                         :v "v3"}]}]}
              (sut/pipe driver "trans-input" {:key "other" :value "v3"}))))))
 
-(defn first-connected-topology []
+(defn first-connected-topology
+  []
   (let [builder (j/streams-builder)]
     (-> (j/kstream builder (j/topic-config "connected-input"))
         (j/map (fn [[k v]] [(str k " in first") (str v " in first")]))
         (j/to (j/topic-config "connection")))
     (j/build-topology builder)))
 
-(defn second-connected-topology []
+(defn second-connected-topology
+  []
   (let [builder (j/streams-builder)]
     (-> (j/kstream builder (j/topic-config "connection"))
         (j/map (fn [[k v]] [(str k " then in second") (str v " then in second")]))
@@ -250,12 +266,13 @@
                                  :value "v in first then in second"}]}
            (sut/pipe driver "connected-input" {:key "k" :value "v"})))))
 
-(defn advance-time-topology []
+(defn advance-time-topology
+  []
   (let [builder (j/streams-builder)]
     (-> (j/kstream builder (j/topic-config "time-input"))
         (j/transform
-          (j/punctuator 1 (fn [ctx epoch]
-                            (.forward ctx "k" (str "v at " epoch)))))
+         (j/punctuator (Duration/ofMillis 1) (fn [ctx epoch]
+                                               (.forward ctx "k" (str "v at " epoch)))))
         (j/to (j/topic-config "time-output")))
     (j/build-topology builder)))
 
@@ -266,7 +283,8 @@
                             :value "v at 1"}]}
            (sut/advance-time driver 1)))))
 
-(defn empty-topo []
+(defn empty-topo
+  []
   (let [builder (j/streams-builder)]
     (j/build-topology builder)))
 
@@ -276,16 +294,19 @@
     (is (= {}
            (sut/advance-time driver 1)))))
 
-(defn join-topology []
+(defn join-topology
+  []
   (let [builder (j/streams-builder)
         table (j/ktable builder (j/topic-config "table-input"))]
     (-> (j/kstream builder (j/topic-config "join-input"))
-        (j/left-join table (fn [i t] {:input i
-                                      :table-value t}))
+        (j/left-join table (fn [i t]
+                             {:input i
+                              :table-value t}))
         (j/to (j/topic-config "join-output")))
     (j/build-topology builder)))
 
-(defn select-key-join-topology []
+(defn select-key-join-topology
+  []
   (let [builder (j/streams-builder)
         _unused-table (-> (j/kstream builder (j/topic-config "table-input"))
                           (j/select-key (fn [[_ _]] (rand-int 1000)))
@@ -299,8 +320,9 @@
                   (j/reduce (fn [_ b] b) (j/topic-config "table")))]
     (-> (j/kstream builder (j/topic-config "join-input"))
         (j/select-key (fn [[_ v]] v))
-        (j/left-join table (fn [v t] {:input v
-                                      :table-value t})
+        (j/left-join table (fn [v t]
+                             {:input v
+                              :table-value t})
                      j/serde-config j/serde-config)
         (j/through (j/topic-config "join-output"))
         (j/to (j/topic-config "table-input")))
@@ -310,11 +332,11 @@
   (testing "join"
     (with-open [driver (sut/driver j/serde-config
                                    {"join" join-topology})]
-      (is (= {} (sut/pipe driver "table-input" {:key "k" :value "v in table"})))
-      (is (= {"join-output" [{:key "k"
+      (is (= {} (sut/pipe driver "table-input" {:key ["k" "p"] :value "v in table"})))
+      (is (= {"join-output" [{:key ["k" "p"]
                               :value {:input "v in input"
                                       :table-value "v in table"}}]}
-             (sut/pipe driver "join-input" {:key "k" :value "v in input"})))
+             (sut/pipe driver "join-input" {:key ["k" "p"] :value "v in input"})))
       (is (= {"join-output" [{:key "k2"
                               :value {:input "v in input"
                                       :table-value nil}}]}
@@ -338,7 +360,8 @@
                                       :table-value "id"}}]}
              (sut/pipe driver "join-input" {:key "k" :value "id"}))))))
 
-(defn global-kt-topology []
+(defn global-kt-topology
+  []
   (let [builder (j/streams-builder)
         kt (j/ktable builder (j/topic-config "normal-input"))
         gkt (j/global-ktable builder (j/topic-config "global-input"))
@@ -384,7 +407,8 @@
         ^ValueAndTimestamp vt (.get store k)]
     (when vt (.value vt))))
 
-(defn recursive-advance-time-topology []
+(defn recursive-advance-time-topology
+  []
   (let [builder (j/streams-builder)]
     (-> (j/kstream builder (j/topic-config "trigger-1-input"))
         (j/group-by-key)
@@ -394,13 +418,14 @@
 
     (-> (j/kstream builder (j/topic-config "empty"))
         (j/transform
-          (j/punctuator 1 (fn [ctx timestamp]
-                            (when-let [t1-value (get-from-store ctx "trigger-1-store" "key")]
-                              (.forward ctx
-                                        "key"
-                                        {:t1-timestamp timestamp
-                                         :t1-value t1-value}))))
-          ["trigger-1-store"])
+         (j/punctuator (Duration/ofMillis 1)
+                       (fn [ctx timestamp]
+                         (when-let [t1-value (get-from-store ctx "trigger-1-store" "key")]
+                           (.forward ctx
+                                     "key"
+                                     {:t1-timestamp timestamp
+                                      :t1-value t1-value}))))
+         ["trigger-1-store"])
         (j/to (j/topic-config "trigger-2-input")))
 
     (-> (j/kstream builder (j/topic-config "trigger-2-input"))
@@ -411,12 +436,13 @@
 
     (-> (j/kstream builder (j/topic-config "empty"))
         (j/transform
-          (j/punctuator 1 (fn [ctx timestamp]
-                            (when-let [t1-map (get-from-store ctx "trigger-2-store" "key")]
-                              (.forward ctx
-                                        "key"
-                                        (assoc t1-map :t2-timestamp timestamp)))))
-          ["trigger-2-store"])
+         (j/punctuator (Duration/ofMillis 1)
+                       (fn [ctx timestamp]
+                         (when-let [t1-map (get-from-store ctx "trigger-2-store" "key")]
+                           (.forward ctx
+                                     "key"
+                                     (assoc t1-map :t2-timestamp timestamp)))))
+         ["trigger-2-store"])
         (j/to (j/topic-config "output")))
 
     (j/build-topology builder)))
@@ -441,3 +467,102 @@
                                :t1-value "value"
                                :t2-timestamp 3}}]}
            (sut/advance-time driver 1)))))
+
+(defn- range-key
+  [foreign-key position & more]
+  ;; Uses a swap between zero '0', one '1', and two '2' to be able to produce
+  ;; keys that are guaranteed to be before/within/after the foreign-key based
+  ;; range when querying with RocksDB.
+  (let [delimiter \b
+        p-char (case position
+                 :before \0
+                 :within \1
+                 :after \2)]
+    (str foreign-key delimiter
+         p-char delimiter
+         more)))
+
+(defn within-range-key
+  [foreign-key primary-key]
+  (range-key foreign-key :within primary-key))
+
+(defn before-range-key
+  [foreign-key]
+  (range-key foreign-key :before))
+
+(defn after-range-key
+  [foreign-key]
+  (range-key foreign-key :after))
+
+(defn store-by-range-key
+  [^ProcessorContext ctx store-name foreign-key original-key original-value]
+  (let [store (.getStateStore ctx store-name)
+        k (within-range-key foreign-key original-key)]
+    (.put store k original-value)))
+
+(defn range-topology
+  []
+  (let [builder (j/streams-builder)]
+    (.addStateStore builder
+                    (Stores/keyValueStoreBuilder
+                     (Stores/persistentKeyValueStore "trans-store")
+                     j/edn-serde j/edn-serde))
+    (-> (j/kstream builder (j/topic-config "range-input"))
+        (j/transform
+         (j/transformer
+          (fn [^ProcessorContext ctx k v]
+            (store-by-range-key ctx "trans-store" k (:original-key v) v)
+            nil))
+         ["trans-store"]))
+    (-> (j/kstream builder (j/topic-config "input"))
+        (j/transform
+         (j/transformer
+          (fn [^ProcessorContext ctx k v]
+            (let [^KeyValueStore store (.getStateStore ctx "trans-store")]
+              (doseq [kv-java (iterator-seq (.range store (before-range-key k) (after-range-key k)))]
+                (.forward ctx (.key kv-java) (.value kv-java))))))
+         ["trans-store"])
+        (j/to (j/topic-config "output")))
+    (j/build-topology builder)))
+
+(deftest range-test
+  (testing "simple-single-range-string"
+    (let [partition-key "determines-partition"]
+      (with-open [driver (sut/driver j/serde-config
+                                     {"transform" range-topology})]
+        (is (= {}
+               (sut/pipe driver "range-input" {:key partition-key
+                                               :value {:original-key "unique-key-1"
+                                                       :foo :bar}})))
+        (is (= {"output" [{:key (within-range-key partition-key "unique-key-1")
+                           :value {:original-key "unique-key-1"
+                                   :foo :bar}}]}
+               (sut/pipe driver "input" {:key partition-key :value "v2"}))))))
+  (testing "simple-single-range-vec"
+    (let [partition-key ["foo" "bar"]]
+      (with-open [driver (sut/driver j/serde-config
+                                     {"transform" range-topology})]
+        (is (= {}
+               (sut/pipe driver "range-input" {:key partition-key
+                                               :value {:original-key "unique-key-1"
+                                                       :foo :bar}})))
+        (is (= {"output" [{:key (within-range-key partition-key "unique-key-1")
+                           :value {:original-key "unique-key-1"
+                                   :foo :bar}}]}
+               (sut/pipe driver "input" {:key partition-key :value "v2"}))))))
+  (testing "simple-multiple-range-int"
+    (let [partition-key "determines-partition"]
+      (with-open [driver (sut/driver j/serde-config
+                                     {"transform" range-topology})]
+        (doseq [i (range 10)]
+          (is (= {}
+                 (sut/pipe driver "range-input" {:key partition-key
+                                                 :value {:original-key i
+                                                         :foo :bar}}))))
+        (is (= {"output" (map
+                          (fn [i]
+                            {:key (within-range-key partition-key i)
+                             :value {:original-key i
+                                     :foo :bar}})
+                          (range 10))}
+               (sut/pipe driver "input" {:key partition-key :value "v2"})))))))

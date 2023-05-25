@@ -1,8 +1,16 @@
 (ns ktest.internal.interop
-  (:import [org.apache.kafka.streams TopologyInternalsAccessor TopologyTestDriver Topology]
-           [java.util Properties]
-           [org.apache.kafka.streams.processor.internals CapturingStreamTask StreamTask]
-           [java.lang.reflect Field Modifier]))
+  (:import (java.lang.reflect
+            Field
+            Modifier)
+           (java.util
+            Properties)
+           (org.apache.kafka.streams
+            Topology
+            TopologyInternalsAccessor
+            TopologyTestDriver)
+           (org.apache.kafka.streams.processor.internals
+            CapturingStreamTask
+            StreamTask)))
 
 (def field-modifiers-field
   (doto (.getDeclaredField Field "modifiers")
@@ -28,18 +36,20 @@
   [^TopologyTestDriver test-driver ^StreamTask task]
   (.set test-driver-task-field test-driver task))
 
-(defn- properties [p]
+(defn- properties
+  [p]
   (reduce-kv
-    (fn [p k v]
-      (doto p
-        (.setProperty (name k) v)))
-    (Properties.)
-    p))
+   (fn [p k v]
+     (doto p
+       (.setProperty (name k) v)))
+   (Properties.)
+   p))
 
-(defn test-driver [topology config epoch-millis output-capture]
+(defn test-driver
+  [topology config epoch-millis output-capture]
   (let [t (TopologyTestDriver. ^Topology topology
                                ^Properties (properties config)
-                               ^long epoch-millis)
+                               ^Long epoch-millis)
         task (TopologyInternalsAccessor/getTestStreamTask t)
         wrapped-task (when task (CapturingStreamTask. task get-field output-capture))]
     (set-stream-task t wrapped-task)

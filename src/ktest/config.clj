@@ -1,6 +1,7 @@
 (ns ktest.config
   (:require [ktest.stores :as stores])
-  (:import [java.util Random]))
+  (:import (java.util
+            Random)))
 
 (defn default-topology-mutator
   [topology _opts]
@@ -9,10 +10,14 @@
       stores/mutate-to-fast-stores))
 
 (defn default-partition-strategy
-  [_topic {:keys [key] :as msg}]
-  (vec key))
+  [topic {:keys [key] :as msg} {:keys [key-serde]}]
+  (let [topic-name (if (string? topic) topic (:topic-name topic))]
+    (->> key
+         (.serialize (.serializer key-serde) topic-name)
+         (.deserialize (.deserializer key-serde) topic-name))))
 
-(defn default-opts []
+(defn default-opts
+  []
   {:key-serde nil
    :value-serde nil
    :partition default-partition-strategy
@@ -26,6 +31,7 @@
    :topo-mutator default-topology-mutator
    :initial-ms 0})
 
-(defn mk-opts [own-opts]
+(defn mk-opts
+  [own-opts]
   (merge (default-opts)
          own-opts))

@@ -11,8 +11,8 @@
   [output]
   (let [{repartitions true real false} (group-by (comp repartition-topic? key) output)]
     (cond-> {}
-            (seq repartitions) (assoc :repartitions (into {} repartitions))
-            (seq real) (assoc :real (into {} real)))))
+      (seq repartitions) (assoc :repartitions (into {} repartitions))
+      (seq real) (assoc :real (into {} real)))))
 
 (defn flatten-output
   [output]
@@ -35,22 +35,34 @@
                next-input combined-output))
       output)))
 
-(defrecord CompletingInternalsDriver [driver opts]
+(defrecord CompletingInternalsDriver
+  [driver opts]
+
   Driver
-  (pipe-input [_ topic message]
+
+  (pipe-input
+    [_ topic message]
     (let [initial-result (pipe-input driver topic message)
           {:keys [real repartitions]} (split-output initial-result)]
       (process-messages-to-completion 1 opts driver
                                       (flatten-output repartitions)
                                       real)))
-  (advance-time [_ advance-millis]
+
+
+  (advance-time
+    [_ advance-millis]
     (let [initial-result (advance-time driver advance-millis)
           {:keys [real repartitions]} (split-output initial-result)]
       (process-messages-to-completion 1 opts driver
                                       (flatten-output repartitions)
                                       real)))
-  (current-time [_]
+
+
+  (current-time
+    [_]
     (current-time driver))
+
+
   (close [_] (close driver)))
 
 (defn driver
