@@ -14,7 +14,7 @@
 
   (advance-time
     [_ advance-millis]
-    (deserialise-output opts (advance-time driver advance-millis)))
+    (advance-time driver advance-millis))
 
 
   (current-time
