@@ -4,7 +4,7 @@
   <packaging>jar</packaging>
   <groupId>djs</groupId>
   <artifactId>ktest</artifactId>
-  <version>3.3.2-alpha2</version>
+  <version>3.3.3-alpha1</version>
   <name>ktest</name>
   <dependencies>
     <dependency>
