@@ -8,4 +8,6 @@
 
   (current-time [this])
 
+  (stores-info [this])
+
   (close [this]))

@@ -27,3 +27,7 @@
 (defn set-time
   [driver epoch-millis]
   (advance-time driver (- epoch-millis (b/current-time driver))))
+
+(defn stores-info
+  [driver]
+  (b/stores-info driver))

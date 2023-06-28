@@ -28,6 +28,12 @@
     @current-epoch-millis)
 
 
+  (stores-info
+    [_]
+    (->> (map stores-info drivers)
+         (reduce #(merge-with merge %1 %2) {})))
+
+
   (close
     [_]
     (when-let [errors (->> drivers

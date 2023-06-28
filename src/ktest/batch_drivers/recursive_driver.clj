@@ -38,6 +38,11 @@
                                     initial-outputs)))
 
 
+  (stores-info
+    [_]
+    (stores-info batch-driver))
+
+
   (current-time
     [_]
     (current-time batch-driver))

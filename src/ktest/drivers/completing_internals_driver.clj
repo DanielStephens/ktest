@@ -58,6 +58,11 @@
                                       real)))
 
 
+  (stores-info
+    [_]
+    (stores-info driver))
+
+
   (current-time
     [_]
     (current-time driver))

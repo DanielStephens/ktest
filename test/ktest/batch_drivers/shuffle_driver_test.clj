@@ -14,6 +14,8 @@
 
     (current-time [_] 0)
 
+    (stores-info [_])
+
     (close [_])))
 
 (defn shuffle-driver

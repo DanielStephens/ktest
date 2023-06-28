@@ -2,31 +2,21 @@
   (:require [clojure.string :as str]
             [ktest.internal.interop :as i]
             [ktest.protocols.driver :refer :all]
-            [ktest.stores :refer [alternative-store-builder]]
             [ktest.utils :refer :all])
   (:import (java.time
             Duration
             Instant)
-           (org.apache.kafka.clients.consumer
-            ConsumerRecord)
            (org.apache.kafka.common
             TopicPartition)
-           (org.apache.kafka.common.record
-            TimestampType)
            (org.apache.kafka.streams
             TopologyInternalsAccessor
             TopologyTestDriver)
+           (org.apache.kafka.streams.processor
+            StateStore)
            (org.apache.kafka.streams.processor.internals
-            StreamTask)))
-
-(defn- consumer-record
-  [state topic {:keys [key value]}]
-  (ConsumerRecord. topic
-                   0 0
-                   (:epoch @state) TimestampType/CREATE_TIME
-                   -1
-                   (count (vec key)) (count (vec value))
-                   key value))
+            StreamTask)
+           (org.apache.kafka.streams.state
+            ValueAndTimestamp)))
 
 (defn- raw-repartition-topic
   [application-id topic]
@@ -111,9 +101,20 @@
 
     :else nil))
 
+(defn extra-info-from-store
+  [state-store]
+  (->> (.all state-store)
+       (iterator-seq)
+       (reduce (fn [result key-value]
+                 (let [v (.value key-value)
+                       v (if (instance? ValueAndTimestamp v)
+                           (.value v)
+                           v)]
+                   (assoc result (.key key-value) v))) {})))
+
 (defrecord TopologyDriver
   [opts state ^TopologyTestDriver driver
-   root-application-id application-id
+   root-application-id application-id partition-id
    sources sinks repartition-topic? key-serde value-serde]
 
   Driver
@@ -144,6 +145,14 @@
                                     repartitions))
       (.advanceWallClockTime driver (Duration/ofMillis advance-millis))
       (form-output driver root-application-id sinks @repartitions opts)))
+
+
+  (stores-info
+    [_]
+    (->> (.getAllStateStores driver)
+         (map (fn [[n ^StateStore state-store]]
+                [n {partition-id (extra-info-from-store state-store)}]))
+         (into {})))
 
 
   (current-time [_] (:epoch @state))
@@ -194,5 +203,5 @@
                    (set))]
     (->TopologyDriver opts state driver
                       root-application-id application-id
-                      sources sinks repartition-topic?
+                      partition-id sources sinks repartition-topic?
                       (:key-serde opts) (:value-serde opts))))
