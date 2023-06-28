@@ -52,6 +52,12 @@
   (current-time [_] (:epoch @state))
 
 
+  (stores-info
+    [_]
+    (->> (map stores-info (drivers state))
+         (reduce #(merge-with merge %1 %2) {})))
+
+
   (close
     [_]
     (when-let [errors (->> (drivers state)

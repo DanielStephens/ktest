@@ -25,6 +25,11 @@
     (d/current-time driver))
 
 
+  (stores-info
+    [_]
+    (d/stores-info driver))
+
+
   (close [_] (d/close driver)))
 
 (defn batch-driver

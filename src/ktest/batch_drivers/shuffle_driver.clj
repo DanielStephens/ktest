@@ -59,6 +59,11 @@
     (current-time delegate-batch-driver))
 
 
+  (stores-info
+    [_]
+    (stores-info delegate-batch-driver))
+
+
   (close [_] (close delegate-batch-driver)))
 
 (defn batch-driver

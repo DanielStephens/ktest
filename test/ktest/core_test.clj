@@ -192,7 +192,11 @@
       (is (= {"trans-output" [{:key "other"
                                :value [{:k "other"
                                         :v "v3"}]}]}
-             (sut/pipe driver "trans-input" {:key "other" :value "v3"})))))
+             (sut/pipe driver "trans-input" {:key "other" :value "v3"})))
+      (is (= {"trans-store" {"54b5b7e751fb3220f07981a81914d86f" {}
+                             "8ce4b16b22b58894aa86c421e8759df3" {"constant" [{:k "k", :v "v1"} {:k "k", :v "v2"}]}
+                             "795f3202b17cb6bc3d4b771d8c6c9eaf" {"constant" [{:k "other", :v "v3"}]}}}
+             (sut/stores-info driver)))))
 
   (testing "transform with select-key"
     (with-open [driver (sut/driver j/serde-config

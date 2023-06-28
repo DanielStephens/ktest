@@ -22,6 +22,11 @@
     (current-time driver))
 
 
+  (stores-info
+    [_]
+    (stores-info driver))
+
+
   (close [_] (close driver)))
 
 (defn driver
