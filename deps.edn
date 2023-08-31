@@ -1,7 +1,7 @@
 {:paths ["src" "target/classes"]
  :deps {org.clojure/clojure {:mvn/version "1.10.1"}
-        org.apache.kafka/kafka-streams {:mvn/version "7.3.3-ccs"}
-        org.apache.kafka/kafka-streams-test-utils {:mvn/version "7.3.3-ccs"}
+        org.apache.kafka/kafka-streams {:mvn/version "7.4.0-ccs"}
+        org.apache.kafka/kafka-streams-test-utils {:mvn/version "7.4.0-ccs"}
         digest/digest {:mvn/version "1.4.9"}}
  :mvn/repos {"confluent" {:url "https://packages.confluent.io/maven/"}
              "central" {:url "https://repo1.maven.org/maven2/"}
