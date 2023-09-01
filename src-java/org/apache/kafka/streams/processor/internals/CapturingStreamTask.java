@@ -140,11 +140,6 @@ public class CapturingStreamTask extends StreamTask {
 	}
 
 	@Override
-	public void closeCleanAndRecycleState() {
-		delegate.closeCleanAndRecycleState();
-	}
-
-	@Override
 	public boolean isProcessable(long wallClockTime) {
 		return delegate.isProcessable(wallClockTime);
 	}
@@ -227,11 +222,6 @@ public class CapturingStreamTask extends StreamTask {
 	@Override
 	public TaskId id() {
 		return delegate.id();
-	}
-
-	@Override
-	public Collection<TopicPartition> changelogPartitions() {
-		return delegate.changelogPartitions();
 	}
 
 	@Override
