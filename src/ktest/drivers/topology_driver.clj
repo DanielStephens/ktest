@@ -151,6 +151,8 @@
     [_]
     (->> (.getAllStateStores driver)
          (map (fn [[n ^StateStore state-store]]
+                (when (nil? state-store) (throw (ex-info "State store is nil, this is likely due to it being added, but not used, in the topology"
+                                                         {:store-name n})))
                 [n {partition-id (extra-info-from-store state-store)}]))
          (into {})))
 

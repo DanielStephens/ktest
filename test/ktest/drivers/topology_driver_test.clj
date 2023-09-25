@@ -49,3 +49,26 @@
     (is (= {"table-input" {"partition-id" {"constant" "table1"}}}
            (driver/stores-info driver)))))
 
+(defn topology-with-store-not-used
+  []
+  (let [builder (j/streams-builder)
+        kt (j/ktable builder (j/topic-config "table-input"))]
+    (j/add-store "foo")
+    (-> (j/kstream builder (j/topic-config "stream-input"))
+        (j/select-key (constantly "constant"))
+        (j/left-join kt
+                     (fn [a b]
+                       {:stream a
+                        :table b})
+                     j/serde-config
+                     j/serde-config)
+        (j/to (j/topic-config "join-output")))
+    (j/build-topology builder)))
+
+(deftest error-thrown-when-getting-store-info-with-unused-store
+  (with-open [driver (sut/driver "application-id"
+                                 "partition-id"
+                                 topology-with-store-not-used
+                                 opts)]
+    (driver/stores-info driver)))
+

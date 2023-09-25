@@ -27,6 +27,7 @@
             Named
             Produced
             Reducer
+            Stores
             Transformer
             TransformerSupplier
             ValueJoiner
@@ -91,6 +92,10 @@
 (defn streams-builder
   []
   (StreamsBuilder.))
+
+(defn add-store
+  [store]
+  (.addStateStore (streams-builder) (.keyValueStoreBuilder (.persistentKeyValueStore store) nil nil)))
 
 (defn ktable
   ([builder topic-config store-name]
