@@ -12,6 +12,8 @@
            (org.apache.kafka.streams
             KeyValue
             StreamsBuilder)
+           (org.apache.kafka.streams.state
+             Stores)
            (org.apache.kafka.streams.kstream
             Aggregator
             Consumed
@@ -27,7 +29,6 @@
             Named
             Produced
             Reducer
-            Stores
             Transformer
             TransformerSupplier
             ValueJoiner
@@ -95,7 +96,7 @@
 
 (defn add-store
   [store]
-  (.addStateStore (streams-builder) (.keyValueStoreBuilder (.persistentKeyValueStore store) nil nil)))
+  (.addStateStore (streams-builder) (Stores/keyValueStoreBuilder (Stores/persistentKeyValueStore store) nil nil)))
 
 (defn ktable
   ([builder topic-config store-name]
