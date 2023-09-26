@@ -12,6 +12,8 @@
            (org.apache.kafka.streams
             KeyValue
             StreamsBuilder)
+           (org.apache.kafka.streams.state
+             Stores)
            (org.apache.kafka.streams.kstream
             Aggregator
             Consumed
@@ -91,6 +93,10 @@
 (defn streams-builder
   []
   (StreamsBuilder.))
+
+(defn add-store
+  [store]
+  (.addStateStore (streams-builder) (Stores/keyValueStoreBuilder (Stores/persistentKeyValueStore store) nil nil)))
 
 (defn ktable
   ([builder topic-config store-name]
