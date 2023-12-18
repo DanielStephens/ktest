@@ -4,7 +4,7 @@
   <packaging>jar</packaging>
   <groupId>djs</groupId>
   <artifactId>ktest</artifactId>
-  <version>3.4.0-alpha1</version>
+  <version>3.4.2-alpha1</version>
   <name>ktest</name>
   <dependencies>
     <dependency>
@@ -15,7 +15,7 @@
     <dependency>
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka-streams-test-utils</artifactId>
-      <version>7.4.0-ccs</version>
+      <version>7.4.2-ccs</version>
     </dependency>
     <dependency>
       <groupId>digest</groupId>
@@ -25,7 +25,7 @@
     <dependency>
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka-streams</artifactId>
-      <version>7.4.0-ccs</version>
+      <version>7.4.2-ccs</version>
     </dependency>
   </dependencies>
   <build>
