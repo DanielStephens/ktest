@@ -12,23 +12,28 @@
             CapturingStreamTask
             StreamTask)))
 
-(def field-modifiers-field
-  (doto (.getDeclaredField Field "modifiers")
+(defn get-private-field
+  [t n]
+  (doto (.getDeclaredField t n)
     (.setAccessible true)))
 
+(def field-modifiers-field
+  (get-private-field Field "modifiers"))
+
+(defn make-field-settable
+  [field]
+  (.setInt field-modifiers-field field
+           (bit-and (.getInt field-modifiers-field field)
+                    (bit-not Modifier/FINAL)))
+  field)
+
 (def test-driver-task-field
-  (let [tf (.getDeclaredField TopologyTestDriver "task")]
-    (.setAccessible tf true)
-    (.setInt field-modifiers-field tf
-             (bit-and (.getInt field-modifiers-field tf)
-                      (bit-not Modifier/FINAL)))
-    tf))
+  (-> (get-private-field TopologyTestDriver "task")
+      (make-field-settable)))
 
 (defn get-field
   ([obj c field-name]
-   (.get ^Field (doto (.getDeclaredField c field-name)
-                  (.setAccessible true))
-         obj))
+   (.get ^Field (get-private-field c field-name) obj))
   ([obj field-name]
    (get-field obj (class obj) field-name)))
 
