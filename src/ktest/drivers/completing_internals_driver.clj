@@ -42,12 +42,7 @@
 
   (pipe-input
     [_ topic message]
-    (let [initial-result (pipe-input driver topic message)
-          {:keys [real repartitions]} (split-output initial-result)]
-      (process-messages-to-completion 1 opts driver
-                                      (flatten-output repartitions)
-                                      real)))
-
+    (process-messages-to-completion 0 opts driver [(assoc message :topic topic)] {}))
 
   (advance-time
     [_ advance-millis]
