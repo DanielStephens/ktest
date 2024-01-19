@@ -26,7 +26,9 @@ Ontop of that, ktest provides a way to introduce deterministic randomness, you c
 
 The library has a few java classes in the original kafka namespaces, mostly just to provide public accessors to internal methods (although `CapturingStreamTask` also provides some functionality). As a result, it can't be run in a Clojure repl until the java classes have been build.
 
-To build the java classes (and run the tests), run the `test.sh` script. Once the java classes have been built, you can run the clojure code and tests in a repl as normal, although of course any change to the java classes will require you to rerun the script and restart your repl.
+To build the java classes, run `clj -M:build`. If you want to build the java classes _and_ run the tests, run the `test.sh` script.
+
+Once the java classes have been built, you can run the clojure code and tests in a repl as normal, although of course any change to the java classes will require you to rebuild the java classes and restart your repl.
 
 ## Library Structure - Drivers
 
