@@ -60,7 +60,7 @@ This driver wraps a `PartitioningDriver`. When it receives a new message, it pas
 
 ### The CombiningDriver
 
-This driver can be found in the `combined-driver` namespace. It receives a collection of name-value pairs of topologies, and maintains a `CompletingInternalsDriver` for each one. Every time it's asked to publish a message, it publishes it to each topology's `CompletingInternalsDriver`, and every time it returns messages, it amalgamates the results from each topology's `PartitioningDriver`. This allows us to simulate a system with multiple topologies rather than just one.
+This driver can be found in the `combined-driver` namespace. It receives a collection of name-value pairs of topologies, and maintains a `CompletingInternalsDriver` for each one. Every time it's asked to publish a message, it publishes it to each topology's `CompletingInternalsDriver`, and every time it returns messages, it amalgamates the results from each topology's `CompletingInternalsDriver`. This allows us to simulate a system with multiple topologies rather than just one.
 
 ### The ApplyingSerdeDriver
 
