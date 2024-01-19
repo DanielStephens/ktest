@@ -64,15 +64,11 @@ This driver wraps a `PartitioningDriver`. When it receives a new message, it pas
 
 This driver can be found in the `combined-driver` namespace. It receives a collection of name-value pairs of topologies, and maintains a `CompletingInternalsDriver` for each one. Every time it's asked to publish a message, it publishes it to each topology's `CompletingInternalsDriver`, and every time it returns messages, it amalgamates the results from each topology's `CompletingInternalsDriver`. This allows us to simulate a system with multiple topologies rather than just one.
 
-### The ApplyingSerdeDriver
-
-This driver (in the `serde-driver` namespace) allows clients to deal with standard clojure maps. It delegates to a `CombiningDriver`, serialising all messages on the way in, and deserialising all messages on the way out.
-
 ### The BatchUpDriver
 
 The `BatchUpDriver` lives in the `batching-driver` namespace. It fulfils the `BatchDriver` interface, rather than the `Driver` interface. The only difference between the two is that the `pipe-input` method on the `Driver` interface takes a topic and a single message, while the same method on the `BatchDriver` interface takes a sequence of messages (all of which must have the `:topic` field).
 
-As you'd expect, the `BatchUpDriver` delegates to an `ApplyingSerdeDriver`, iterating over each message, and passing in the `:topic` field separately.
+As you'd expect, the `BatchUpDriver` delegates to an `CombiningDriver`, iterating over each message, and passing in the `:topic` field separately.
 
 ### The ShuffleDriver
 
