@@ -1,17 +1,15 @@
 (ns ktest.stores
-  (:import (java.time Duration)
-           (java.util List)
-           (org.apache.kafka.common.utils Time)
-           (org.apache.kafka.streams
-             TopologyInternalsAccessor)
-           (org.apache.kafka.streams.kstream.internals KeyValueStoreMaterializer MaterializedStoreFactory MaterializedStoreFactoryAccessor)
-           (org.apache.kafka.streams.processor
-             ProcessorContext StateRestoreCallback StateStore)
-           (org.apache.kafka.streams.processor.internals
-             InternalTopologyBuilder StoreBuilderWrapper StoreFactory)
-           (org.apache.kafka.streams.state
-             Stores TimestampedKeyValueStore)
-           (org.apache.kafka.streams.state.internals AbstractStoreBuilder CachedStateStore KeyValueStoreBuilder SessionStoreBuilder StoreAccessor TimestampedKeyValueStoreBuilder ValueAndTimestampSerde WrappedStateStore)))
+  (:import
+   (java.util List)
+   (org.apache.kafka.common.serialization Serializer)
+   (org.apache.kafka.common.utils Time)
+   (org.apache.kafka.streams TopologyInternalsAccessor)
+   (org.apache.kafka.streams.kstream.internals KeyValueStoreMaterializer MaterializedStoreFactory MaterializedStoreFactoryAccessor)
+   (org.apache.kafka.streams.processor ProcessorContext StateRestoreCallback StateStore StateStoreContext)
+   (org.apache.kafka.streams.processor.internals InternalTopologyBuilder StoreBuilderWrapper StoreFactory)
+   (org.apache.kafka.streams.query Position PositionBound Query QueryConfig QueryResult)
+   (org.apache.kafka.streams.state KeyValueIterator KeyValueStore ReadOnlyKeyValueStore Stores TimestampedKeyValueStore)
+   (org.apache.kafka.streams.state.internals AbstractStoreBuilder CachedStateStore KeyValueStoreBuilder MeteredKeyValueStore StoreAccessor TimestampedKeyValueStoreBuilder ValueAndTimestampSerde WrappedStateStore CacheFlushListener)))
 
 (def ^:private global-state-builders-field
   (let [f (.getDeclaredField InternalTopologyBuilder "globalStateBuilders")]
@@ -58,42 +56,77 @@
   [^StoreFactory sb]
   (let [inner-store (atom nil)]
     (->SingletonStoreFactory
-      sb
-      (fn []
-        (when-not (and @inner-store
-                       (.isOpen @inner-store))
-          (reset! inner-store (.build sb)))
-        (cond
-          (isa? (type @inner-store) TimestampedKeyValueStore)
-          (proxy
-            [WrappedStateStore TimestampedKeyValueStore CachedStateStore]
-            [@inner-store]
-            (^void init [^ProcessorContext v1 ^StateStore v2]
-              (if (.isOpen @inner-store)
-                (.register v1 this (reify StateRestoreCallback (restore [_this _a _b])))
-                (.init @inner-store v1 v2)))
-            (flush [] (.flush @inner-store))
-            (close [] (.close @inner-store))
-            (persistent [] (.persistent @inner-store))
-            (isOpen [] (.isOpen @inner-store))
-            (name [] (.name @inner-store))
-            (get [k] (.get @inner-store k))
-            (range [k1 k2] (.range @inner-store k1 k2))
-            (reverseRange [k1 k2] (.reverseRange @inner-store k1 k2))
-            (all [] (.all @inner-store))
-            (prefixScan [v1 v2] (.prefixScan @inner-store v1 v2))
-            (put [k v] (.put @inner-store k v))
-            (putIfAbsent [k v] (.putIfAbsent @inner-store k v))
-            (^void putAll [^List kvs] (.putAll @inner-store kvs))
-            (delete [k] (.delete @inner-store k))
-            (approximateNumEntries [] (.approximateNumEntries @inner-store))
-            (setFlushListener [listener, send-old-values] (.setFlushListener ^WrappedStateStore @inner-store listener send-old-values))
-            (flushCache [] (.flushCache @inner-store))
-            (clearCache [] (.clearCache @inner-store))
-            (wrapped [] (do @inner-store)))
+     sb
+     (fn []
+       (when-not (and @inner-store
+                      (.isOpen @inner-store))
+         (reset! inner-store (.build sb)))
+       (cond
+         (isa? (type @inner-store) TimestampedKeyValueStore)
+         (proxy
+          [WrappedStateStore TimestampedKeyValueStore CachedStateStore]
+          [@inner-store]
+           (^void init [^ProcessorContext v1 ^StateStore v2]
+             (if (.isOpen @inner-store)
+               (.register v1 this (reify StateRestoreCallback (restore [_this _a _b])))
+               (.init @inner-store v1 v2)))
+           (flush [] (.flush @inner-store))
+           (close [] (.close @inner-store))
+           (persistent [] (.persistent @inner-store))
+           (isOpen [] (.isOpen @inner-store))
+           (name [] (.name @inner-store))
+           (get [k] (.get @inner-store k))
+           (range [k1 k2] (.range @inner-store k1 k2))
+           (reverseRange [k1 k2] (.reverseRange @inner-store k1 k2))
+           (all [] (.all @inner-store))
+           (prefixScan [v1 v2] (.prefixScan @inner-store v1 v2))
+           (put [k v] (.put @inner-store k v))
+           (putIfAbsent [k v] (.putIfAbsent @inner-store k v))
+           (^void putAll [^List kvs] (.putAll @inner-store kvs))
+           (delete [k] (.delete @inner-store k))
+           (approximateNumEntries [] (.approximateNumEntries @inner-store))
+           (setFlushListener [listener, send-old-values] (.setFlushListener ^WrappedStateStore @inner-store listener send-old-values))
+           (flushCache [] (.flushCache @inner-store))
+           (clearCache [] (.clearCache @inner-store))
+           (wrapped [] (do @inner-store)))
 
-          :else
-          (throw (Exception. "Unsupported factory type")))))))
+         (isa? (type @inner-store) MeteredKeyValueStore)
+         (proxy
+          [WrappedStateStore KeyValueStore CachedStateStore StateStore ReadOnlyKeyValueStore]
+          [@inner-store]
+
+           (delete [o] (.delete @inner-store o))
+           (^void put [o1 o2] (.put @inner-store o1 o2))
+           (^void putAll [^List kvs] (.putAll @inner-store kvs))
+           (putIfAbsent [o1 o2] (.putIfAbsent @inner-store o1 o2))
+           (^String name [] (.name @inner-store))
+           (^void init [^StateStoreContext ctx ^StateStore s]
+             (if (.isOpen @inner-store)
+               (.register ctx this (reify StateRestoreCallback (restore [_this _a _b])))
+               (.init @inner-store ctx s)))
+           (^void flush [] (.flush @inner-store))
+           (^void close [] (.close @inner-store))
+           (^boolean persistent [] (.persistent @inner-store))
+           (^boolean isOpen [] (.isOpen @inner-store))
+           (^QueryResult query [^Query query ^PositionBound position-bound ^QueryConfig query-config]
+             (.query @inner-store query position-bound query-config))
+           (^Position getPosition [] (.getPosition @inner-store))
+           (get [o] (.get @inner-store o))
+           (^KeyValueIterator range [o1 o2] (.range @inner-store o1 o2))
+           (^KeyValueIterator reverseRange [o1 o2] (.reverseRange @inner-store o1 o2))
+           (^KeyValueIterator all [] (.all @inner-store))
+           (^KeyValueIterator reverseAll [] (.reverseAll @inner-store))
+           (^KeyValueIterator prefixScan [o ^Serializer serializer]
+             (.prefixScan @inner-store o serializer))
+           (^long approximateNumEntries []
+             (.approximateNumEntries @inner-store))
+           (setFlushListener [^CacheFlushListener listener b]
+             (.setFlushListener @inner-store listener b))
+           (^void clearCache [] (.clearCache @inner-store))
+           (^void flushCache [] (.flushCache @inner-store))
+           (wrapped [] @inner-store))
+         :else
+         (throw (Exception. "Unsupported factory type")))))))
 
 (defn builder->key-serde
   [^AbstractStoreBuilder builder]
