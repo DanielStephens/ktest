@@ -3,8 +3,14 @@
             [ktest.internal.interop :as i]
             [ktest.protocols.driver :refer :all]
             [ktest.utils :refer :all])
-  (:import (java.nio.charset
+  (:import (java.io
+            File)
+           (java.nio.charset
             StandardCharsets)
+           (java.nio.file
+            Files)
+           (java.nio.file.attribute
+            FileAttribute)
            (java.time
             Duration
             Instant)
@@ -194,6 +200,26 @@
 
   (close [_] (.close driver)))
 
+;; Kafka's default state.dir depends only on the application id, so unclosed
+;; drivers leak RocksDB state into later runs. Use a fresh dir per driver.
+(defn- delete-recursively
+  [^File f]
+  (when (.isDirectory f)
+    (doseq [child (.listFiles f)]
+      (delete-recursively child)))
+  (.delete f))
+
+(def ^:private state-dir-root
+  (delay
+   (let [root (.toFile (Files/createTempDirectory "ktest-state-" (make-array FileAttribute 0)))]
+     (.addShutdownHook (Runtime/getRuntime)
+                       (Thread. ^Runnable (fn [] (delete-recursively root))))
+     root)))
+
+(defn- fresh-state-dir
+  []
+  (str (Files/createTempDirectory (.toPath ^File @state-dir-root) "d-" (make-array FileAttribute 0))))
+
 (defn- topo-and-config
   [topology-supplier]
   (let [r (topology-supplier)]
@@ -209,7 +235,8 @@
 
         {:keys [topology config]} (topo-and-config topology-supplier)
         application-id (partitioned-application-id root-application-id partition-id)
-        adjusted-config (merge {"bootstrap.servers" ""}
+        adjusted-config (merge {"bootstrap.servers" ""
+                                "state.dir" (fresh-state-dir)}
                                (into {} config)
                                {"application.id" application-id})
         mutated-topology ((:topo-mutator opts) topology opts)

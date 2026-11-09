@@ -6,6 +6,10 @@
             [ktest.test-utils :as j])
   (:import (java.nio.charset
             StandardCharsets)
+           (java.nio.file
+            Files)
+           (java.nio.file.attribute
+            FileAttribute)
            (org.apache.kafka.common.header.internals
             RecordHeader)
            (org.apache.kafka.streams.processor.api
@@ -155,3 +159,36 @@
       (is (= {:foo "bar"} (:value output-msg)))
       (is (= {"audit.test" "hello"}
              (:kafka-headers (meta output-msg)))))))
+
+(defn global-table-join-topology
+  []
+  (let [builder (j/streams-builder)
+        gkt (j/global-ktable builder (j/topic-config "global-input"))]
+    (-> (j/kstream builder (j/topic-config "input"))
+        (j/left-join-global gkt
+                            (fn [[k _]] k)
+                            (fn [v g] {:value v :global g}))
+        (j/to (j/topic-config "output")))
+    (j/build-topology builder)))
+
+(deftest drivers-with-the-same-application-id-do-not-share-global-store-state
+  ;; Neither driver is closed, as is typical of test suites, so on-disk state
+  ;; from the first must not be visible to the second.
+  (let [new-driver #(sut/driver "same-application-id" "same-partition-id" global-table-join-topology opts)
+        first-driver (new-driver)
+        _ (driver/pipe-input first-driver "global-input" {:key "k" :value "from-first-driver"})
+        _ (is (= {"output" [{:key "k" :value {:value "v" :global "from-first-driver"}}]}
+                 (driver/pipe-input first-driver "input" {:key "k" :value "v"})))
+        second-driver (new-driver)]
+    (is (= {"output" [{:key "k" :value {:value "v" :global nil}}]}
+           (driver/pipe-input second-driver "input" {:key "k" :value "v"})))))
+
+(deftest a-state-dir-supplied-by-the-topology-is-kept
+  (let [dir (str (Files/createTempDirectory "ktest-supplied-" (make-array FileAttribute 0)))]
+    (with-open [driver (sut/driver "application-id" "partition-id"
+                                   (fn []
+                                     {:topology (global-table-join-topology)
+                                      :config {"state.dir" dir}})
+                                   opts)]
+      (driver/pipe-input driver "global-input" {:key "k" :value "g"})
+      (is (.exists (java.io.File. dir "application-id-partition-id"))))))
