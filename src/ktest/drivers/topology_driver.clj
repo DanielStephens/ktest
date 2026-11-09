@@ -24,6 +24,8 @@
             RecordHeaders)
            (org.apache.kafka.common.serialization
             Serde)
+           (org.apache.kafka.common.utils
+            Utils)
            (org.apache.kafka.streams
             KeyValue
             TopologyInternalsAccessor
@@ -202,18 +204,14 @@
 
 ;; Kafka's default state.dir depends only on the application id, so unclosed
 ;; drivers leak RocksDB state into later runs. Use a fresh dir per driver.
-(defn- delete-recursively
-  [^File f]
-  (when (.isDirectory f)
-    (doseq [child (.listFiles f)]
-      (delete-recursively child)))
-  (.delete f))
-
 (def ^:private state-dir-root
   (delay
    (let [root (.toFile (Files/createTempDirectory "ktest-state-" (make-array FileAttribute 0)))]
      (.addShutdownHook (Runtime/getRuntime)
-                       (Thread. ^Runnable (fn [] (delete-recursively root))))
+                       (Thread. ^Runnable (fn []
+                                            (try
+                                              (Utils/delete root)
+                                              (catch Exception _)))))
      root)))
 
 (defn- fresh-state-dir
